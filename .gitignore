@@ -32,9 +32,6 @@ build/
 ### VS Code ###
 .vscode/
 
-### 本地密码配置（不要提交到 git） ###
-src/main/resources/application-local.yml
-
 ### Claude Code 本地配置 ###
 .claude/
 
