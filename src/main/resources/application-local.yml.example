@@ -1,0 +1,4 @@
+# 复制本文件为 application-local.yml，填入你本地 MySQL 的真实密码
+# spring:
+#   datasource:
+#     password: 你的真实密码
