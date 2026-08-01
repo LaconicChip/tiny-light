@@ -35,3 +35,9 @@ build/
 ### Claude Code 本地配置 ###
 .claude/
 
+### Workbuddy ###
+.workbuddy/
+
+### Node ###
+node_modules/
+/package-lock.json

@@ -9,5 +9,5 @@ import lombok.Setter;
 public class LightRequest {
     @NotBlank private String userId;
     @NotBlank private String content;
-    private String mood;
+    @NotBlank private String mood;
 }

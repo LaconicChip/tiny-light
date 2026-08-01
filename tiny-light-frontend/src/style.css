@@ -1,0 +1,71 @@
+:root {
+  /* 暖白底 + 暖金强调：手账式疗愈日记的氛围 */
+  --bg: #faf8f3;
+  --bg-soft: #f5f1e8;
+  --bg-paper: #fdfbf6;
+  --card-bg: #ffffff;
+  --text: #2d2418;
+  --text-soft: #8b8378;
+  --text-faint: #b8ad95;
+  --border: #ebe5d6;
+  --border-strong: #d9cfb8;
+  --hairline: #e0d8c4;
+
+  --gold: #c9a961;
+  --gold-lit: #f5c842;
+  --gold-soft: #faf0d4;
+  --gold-glow: rgba(245, 200, 66, 0.28);
+
+  --dot-empty: #ebe5d6;
+  --dot-lit: #f5c842;
+
+  /* 字体：手写楷体做 display + 系统无衬线做 body，呼应手账感 */
+  --font-display: 'LXGW WenKai Screen', 'LXGW WenKai', 'KaiTi', 'STKaiti', '楷体', serif;
+  --font-body: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', 'Segoe UI', sans-serif;
+  --font-mono: 'SF Mono', 'JetBrains Mono', Menlo, monospace;
+
+  font: 16px/1.75 var(--font-body);
+  color-scheme: light;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 70% 50% at 15% 0%, var(--gold-soft) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 40% at 90% 8%, rgba(245, 200, 66, 0.12) 0%, transparent 50%),
+    var(--bg);
+  background-attachment: fixed;
+}
+
+button {
+  font-family: inherit;
+}
+
+/* 苹果式触感：按下即时反馈，松手也平滑 */
+button:not(:disabled) {
+  transition: transform 100ms ease-out;
+}
+button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* 尊重用户偏好：减少动效 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* 触屏不触发 hover-only 的位移反馈 */
+@media (hover: none) and (pointer: coarse) {
+  .hover-lift:hover {
+    transform: none !important;
+  }
+}
