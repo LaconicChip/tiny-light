@@ -177,17 +177,19 @@ function initParticles() {
   resize()
   particleResizeHandler = resize
   window.addEventListener('resize', resize)
-  function P(init) {
-    this.x = Math.random() * w
-    this.y = init ? Math.random() * h : h + 10
-    this.r = Math.random() * 1.8 + 0.4
-    this.vy = -(Math.random() * 0.2 + 0.06)
-    this.vx = (Math.random() - 0.5) * 0.12
-    this.op = Math.random() * 0.3 + 0.05
-    this.gold = Math.random() > 0.4
-    this.p = Math.random() * Math.PI * 2
+  function makeParticle(init) {
+    return {
+      x: Math.random() * w,
+      y: init ? Math.random() * h : h + 10,
+      r: Math.random() * 1.8 + 0.4,
+      vy: -(Math.random() * 0.2 + 0.06),
+      vx: (Math.random() - 0.5) * 0.12,
+      op: Math.random() * 0.3 + 0.05,
+      gold: Math.random() > 0.4,
+      p: Math.random() * Math.PI * 2,
+    }
   }
-  for (let i = 0; i < N; i++) ps.push(new P(true))
+  for (let i = 0; i < N; i++) ps.push(makeParticle(true))
   function loop() {
     ctx.clearRect(0, 0, w, h)
     for (let i = 0; i < ps.length; i++) {
@@ -206,7 +208,7 @@ function initParticles() {
         ctx.fillStyle = `rgba(248,227,154,${o * 0.08})`
         ctx.fill()
       }
-      if (p.y < -15 || p.x < -15 || p.x > w + 15) ps[i] = new P(false)
+      if (p.y < -15 || p.x < -15 || p.x > w + 15) ps[i] = makeParticle(false)
     }
     particleRaf = requestAnimationFrame(loop)
   }

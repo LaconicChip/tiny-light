@@ -57,7 +57,6 @@ onMounted(() => {
       day, x, y, rec,
       pd: seededRand(day + 2000) * 4,
       rSeed: seededRand(day + 3000),
-      yJitter: (seededRand(day + 4000) - 0.5) * 15,
     })
   }
   geometry.value = geo
@@ -110,7 +109,13 @@ function onStarHover(s, e) {
   const [, m, d] = s.light.lightDate.split('-')
   const dateEl = tip.querySelector('.tip-date')
   const textEl = tip.querySelector('.tip-text')
-  if (dateEl) dateEl.innerHTML = `<svg width="8" height="8" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0l1.8 5.5L16 8l-6.2 2.5L8 16l-1.8-5.5L0 8l6.2-2.5z"/></svg> ${parseInt(m)}月${parseInt(d)}日 · ${s.light.mood || ''}`
+  // SVG 是常量，走 innerHTML 安全；mood 来自用户数据，用 textContent 追加防 XSS
+  if (dateEl) {
+    dateEl.innerHTML = `<svg width="8" height="8" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0l1.8 5.5L16 8l-6.2 2.5L8 16l-1.8-5.5L0 8l6.2-2.5z"/></svg> ${parseInt(m)}月${parseInt(d)}日 · `
+    const moodSpan = document.createElement('span')
+    moodSpan.textContent = s.light.mood || ''
+    dateEl.appendChild(moodSpan)
+  }
   if (textEl) textEl.textContent = s.light.content || ''
   tip.classList.add('show')
   onStarMove(e)

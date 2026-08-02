@@ -66,65 +66,62 @@ function confirmDelete() {
   if (confirm('确定删除今天的微光吗？删了可以重新点亮。')) emit('delete')
 }
 
-/* 3D 倾斜 + 磁吸按钮（仅桌面 + 非减少动效） */
+/* 3D 倾斜 + 磁吸按钮（仅桌面 + 非减少动效）
+   磁吸用事件委托绑在常驻的 card 上，避免按钮在已点亮态不渲染时绑不到监听 */
 const cardRef = ref(null)
-const btnRef = ref(null)
 let tiltRaf = null
 let cardMoveHandler = null
 let cardLeaveHandler = null
-let btnMoveHandler = null
-let btnLeaveHandler = null
+let currentBtn = null
 
 onMounted(() => {
   if (prm || touch) return
   const card = cardRef.value
-  const btn = btnRef.value
-  if (card) {
-    cardMoveHandler = (e) => {
-      if (!card.classList.contains('visible')) return
-      if (tiltRaf) cancelAnimationFrame(tiltRaf)
-      tiltRaf = requestAnimationFrame(() => {
-        const r = card.getBoundingClientRect()
-        const x = (e.clientX - r.left) / r.width - 0.5
-        const y = (e.clientY - r.top) / r.height - 0.5
-        card.style.transform = `perspective(1000px) rotateX(${-y * 3.5}deg) rotateY(${x * 3.5}deg) rotate(-1.2deg) translate3d(0,0,0)`
-        tiltRaf = null
-      })
+  if (!card) return
+
+  cardMoveHandler = (e) => {
+    // 磁吸：鼠标在点亮按钮上时，按钮被轻微吸引（委托，按钮后渲染也能命中）
+    const btn = e.target.closest('.light-btn')
+    if (currentBtn && currentBtn !== btn) {
+      currentBtn.style.transform = ''
+      currentBtn = null
     }
-    cardLeaveHandler = () => {
-      if (tiltRaf) cancelAnimationFrame(tiltRaf)
-      if (card.classList.contains('visible')) {
-        card.style.transform = 'perspective(1000px) rotate(-1.2deg) translate3d(0,0,0)'
-      }
-      tiltRaf = null
-    }
-    card.addEventListener('mousemove', cardMoveHandler)
-    card.addEventListener('mouseleave', cardLeaveHandler)
-  }
-  if (btn) {
-    btnMoveHandler = (e) => {
+    if (btn && !btn.disabled) {
+      currentBtn = btn
       const r = btn.getBoundingClientRect()
       const cx = r.left + r.width / 2
       const cy = r.top + r.height / 2
       btn.style.transform = `translate3d(${(e.clientX - cx) * 0.15}px,${(e.clientY - cy) * 0.15 - 2}px,0) scale(1.02)`
     }
-    btnLeaveHandler = () => { btn.style.transform = '' }
-    btn.addEventListener('mousemove', btnMoveHandler)
-    btn.addEventListener('mouseleave', btnLeaveHandler)
+    // 3D 倾斜：仅在卡片可见后生效
+    if (!card.classList.contains('visible')) return
+    if (tiltRaf) cancelAnimationFrame(tiltRaf)
+    tiltRaf = requestAnimationFrame(() => {
+      const r = card.getBoundingClientRect()
+      const x = (e.clientX - r.left) / r.width - 0.5
+      const y = (e.clientY - r.top) / r.height - 0.5
+      card.style.transform = `perspective(1000px) rotateX(${-y * 3.5}deg) rotateY(${x * 3.5}deg) rotate(-1.2deg) translate3d(0,0,0)`
+      tiltRaf = null
+    })
   }
+  cardLeaveHandler = () => {
+    if (tiltRaf) cancelAnimationFrame(tiltRaf)
+    if (card.classList.contains('visible')) {
+      card.style.transform = 'perspective(1000px) rotate(-1.2deg) translate3d(0,0,0)'
+    }
+    if (currentBtn) { currentBtn.style.transform = ''; currentBtn = null }
+    tiltRaf = null
+  }
+  card.addEventListener('mousemove', cardMoveHandler)
+  card.addEventListener('mouseleave', cardLeaveHandler)
 })
 
 onUnmounted(() => {
   if (tiltRaf) cancelAnimationFrame(tiltRaf)
   const card = cardRef.value
-  const btn = btnRef.value
   if (card) {
     card.removeEventListener('mousemove', cardMoveHandler)
     card.removeEventListener('mouseleave', cardLeaveHandler)
-  }
-  if (btn) {
-    btn.removeEventListener('mousemove', btnMoveHandler)
-    btn.removeEventListener('mouseleave', btnLeaveHandler)
   }
 })
 
@@ -163,7 +160,6 @@ const showForm = (t) => !t || isEditing.value
         <div class="form-actions">
           <button v-if="isEditing" class="ghost-btn" @click="cancelEdit">取消</button>
           <button
-            ref="btnRef"
             class="light-btn"
             :disabled="!content.trim() || !mood"
             @click="isEditing ? saveEdit() : submit()"
