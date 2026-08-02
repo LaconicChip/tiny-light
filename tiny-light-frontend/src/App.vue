@@ -139,8 +139,8 @@ function shoot() {
   const ch = c.clientHeight || window.innerHeight * 0.5
   const sx = Math.random() * cw * 0.5 + cw * 0.3
   const sy = Math.random() * ch * 0.4 + 20
-  const ang = -20 - Math.random() * 30
-  const dur = 0.6 + Math.random() * 0.8
+  const ang = -20 - Math.random() * 25
+  const dur = 1.8 + Math.random() * 2.2
   const dist = 400 + Math.random() * 350
   s.style.cssText = `left:${sx}px;top:${sy}px;--sdur:${dur}s;--ang:${ang}deg;--sx:${-dist}px;--sy:${dist * 0.55}px;--tail:${100 + Math.random() * 100}px;`
   c.appendChild(s)
@@ -150,9 +150,10 @@ function schedShoot() {
   if (prm) return
   shootTimer = setTimeout(() => {
     shoot()
-    if (Math.random() < 0.2) setTimeout(shoot, 200 + Math.random() * 400)
+    if (Math.random() < 0.5) setTimeout(shoot, 200 + Math.random() * 400)
+    if (Math.random() < 0.25) setTimeout(shoot, 500 + Math.random() * 500)
     schedShoot()
-  }, 7000 + Math.random() * 7000)
+  }, 2500 + Math.random() * 3000)
 }
 
 /* ===== 背景动效 3：Canvas 金色微尘 60 颗 ===== */
@@ -302,7 +303,7 @@ onMounted(async () => {
   initParallax()
   initReveal()
   schedShoot()
-  if (!prm) { setTimeout(shoot, 2500); setTimeout(shoot, 6000) }
+  if (!prm) { setTimeout(shoot, 1500); setTimeout(shoot, 3500) }
 
   try {
     await refreshAll()
@@ -418,11 +419,6 @@ onUnmounted(() => {
       <section class="section-stats">
         <Stats :stats="stats" />
       </section>
-
-      <!-- 过渡区暖光（去掉横线，只留光晕） -->
-      <div class="zone-divider">
-        <div class="horizon-glow"></div>
-      </div>
 
       <!-- 星光河 -->
       <section class="section-river">
@@ -633,20 +629,9 @@ onUnmounted(() => {
 }
 
 .section-input { padding: clamp(36px, 6vh, 56px) 0 24px; position: relative; }
-.section-stats { padding: 32px 0 20px; position: relative; min-height: 150px; }
-.section-river { padding: clamp(40px, 6vh, 64px) 0 36px; position: relative; }
+.section-stats { padding: 32px 0 clamp(48px, 7vh, 80px); position: relative; min-height: 150px; }
+.section-river { padding: clamp(24px, 4vh, 40px) 0 36px; position: relative; }
 .section-memories { padding: clamp(32px, 5vh, 48px) 0 24px; position: relative; }
-
-/* 过渡地平线：只留暖光，去掉横线 */
-.zone-divider { position: relative; height: 100px; margin: 0; pointer-events: none; }
-.horizon-glow {
-  position: absolute;
-  bottom: 0; left: 0; right: 0;
-  height: 100px;
-  background: radial-gradient(ellipse at 50% 100%, rgba(248,227,154,0.18) 0%, rgba(237,206,110,0.05) 30%, transparent 70%);
-  animation: hPulse 6s ease-in-out infinite;
-}
-@keyframes hPulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
 
 /* 页脚 */
 .footer { padding: clamp(36px, 5vh, 52px) 0 clamp(24px, 3vh, 32px); text-align: center; position: relative; }
@@ -670,8 +655,7 @@ onUnmounted(() => {
 @media (max-width: 768px) {
   .hero { padding-top: 50px; }
   .hero-emblem { top: 25px; right: 10px; }
-  .section-stats { min-height: auto; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; padding: 20px 0; }
-  .zone-divider { height: 50px; }
+  .section-stats { min-height: auto; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; padding: 20px 0 40px; }
 }
 @media (max-width: 480px) {
   .hero-title { letter-spacing: 0.06em; }
