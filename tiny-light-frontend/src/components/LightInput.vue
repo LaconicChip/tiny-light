@@ -206,12 +206,22 @@ const showForm = (t) => !t || isEditing.value
   margin-left: clamp(0px, 3vw, 40px);
   transform: perspective(1000px) rotate(-1.2deg) translate3d(0, 40px, 0);
   opacity: 0;
-  transition: opacity 0.9s var(--ease-out), box-shadow 0.4s, transform 0.5s var(--ease-out);
+  /* transition 只管 opacity 和 box-shadow；transform 不列入，避免与 JS 3D 倾斜冲突
+     （原 transition: transform 0.5s 会让 mousemove 倾斜有 0.5s 延迟，跟手卡顿）。
+     入场位移用 @keyframes 卡片加载动画代替，不依赖 transition */
+  transition: opacity 0.9s var(--ease-out), box-shadow 0.4s;
   box-shadow: var(--glass-inner-shadow), var(--glass-outer-shadow), 0 0 60px rgba(237, 206, 110, 0.06);
 }
 .input-card.visible {
   opacity: 1;
-  transform: perspective(1000px) rotate(-1.2deg) translate3d(0, 0, 0);
+  /* transform 不在这里设：visible 后由 JS mousemove 接管 3D 倾斜，
+     无鼠标时保持入场结束态（rotate -1.2deg + translate3d 0）。
+     用 animation 做一次性入场位移，结束后 transform 回到 CSS 默认（rotate -1.2deg） */
+  animation: cardEnter 0.9s var(--ease-out) forwards;
+}
+@keyframes cardEnter {
+  from { transform: perspective(1000px) rotate(-1.2deg) translate3d(0, 40px, 0); }
+  to { transform: perspective(1000px) rotate(-1.2deg) translate3d(0, 0, 0); }
 }
 .input-card::before {
   content: '';
@@ -456,7 +466,11 @@ const showForm = (t) => !t || isEditing.value
 
 @media (max-width: 768px) {
   .input-card { margin-left: 0; max-width: 100%; transform: perspective(1000px) rotate(-0.6deg) translate3d(0, 40px, 0); }
-  .input-card.visible { transform: perspective(1000px) rotate(-0.6deg) translate3d(0, 0, 0); }
+  .input-card.visible { animation-name: cardEnterMobile; }
+  @keyframes cardEnterMobile {
+    from { transform: perspective(1000px) rotate(-0.6deg) translate3d(0, 40px, 0); }
+    to { transform: perspective(1000px) rotate(-0.6deg) translate3d(0, 0, 0); }
+  }
 }
 @media (max-width: 480px) {
   .input-card { padding: 18px; border-radius: 16px; }

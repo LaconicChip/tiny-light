@@ -1,7 +1,36 @@
 // 生成测试数据 SQL，用 INSERT IGNORE 跳过已有日期
+// 用法：
+//   node seed-test-data.mjs              → 为数据库中所有已有用户插入数据
+//   node seed-test-data.mjs user-xxxx    → 为指定 userId 插入数据
 import { execSync } from 'child_process'
 
-const userIds = ['demo', 'user-5pmfy2yx', 'user-9g9swszc']
+const MYSQL_BIN = process.env.MYSQL_PATH || 'C:\\Program Files\\MySQL\\MySQL Server 9.7\\bin\\mysql.exe'
+const MYSQL_CMD = `"${MYSQL_BIN}" --default-character-set=utf8mb4 -u root -p123456 tiny_light`
+
+// 确定目标用户列表
+function resolveUserIds() {
+  const arg = process.argv[2]
+  if (arg) {
+    console.log(`使用指定用户: ${arg}`)
+    return [arg]
+  }
+  // 查询数据库中已有的所有用户
+  try {
+    const out = execSync(
+      `${MYSQL_CMD} -N -e "SELECT DISTINCT user_id FROM tiny_light;" 2>nul`
+    ).toString().trim()
+    if (out) {
+      const ids = out.split('\n').map(s => s.trim()).filter(Boolean)
+      console.log(`检测到数据库中已有 ${ids.length} 个用户: ${ids.join(', ')}`)
+      return ids
+    }
+  } catch { /* 表可能为空或不存在，忽略 */ }
+  console.log('数据库中暂无用户数据。请先在浏览器中打开前端页面（会自动生成 userId），然后再运行本脚本。')
+  console.log('或者手动指定: node seed-test-data.mjs <your-user-id>')
+  process.exit(1)
+}
+
+const userIds = resolveUserIds()
 const moods = ['开心', '平静', '感恩', '疲惫', '感动', '思念', '期待']
 
 const contents = [
@@ -81,14 +110,14 @@ userIds.forEach((uid, uidIdx) => {
   })
 })
 
-const sql = `SET NAMES utf8mb4;\nDELETE FROM tiny_light;\nINSERT IGNORE INTO tiny_light (user_id, content, mood, light_date, created_at) VALUES\n${values.join(',\n')};`
+const sql = `SET NAMES utf8mb4;\nDELETE FROM tiny_light WHERE user_id IN (${userIds.map(u => `'${u}'`).join(',')});\nINSERT IGNORE INTO tiny_light (user_id, content, mood, light_date, created_at) VALUES\n${values.join(',\n')};`
 
 // 执行
 console.log(`生成 ${values.length} 条记录（${userIds.length} 个用户 × ${allDates.length} 天）`)
-execSync(`mysql --default-character-set=utf8mb4 -u root -p123456 tiny_light`, { input: sql, stdio: ['pipe', 'inherit', 'inherit'] })
+execSync(MYSQL_CMD, { input: sql, stdio: ['pipe', 'inherit', 'inherit'] })
 console.log('插入完成')
 
 // 验证
-const result = execSync(`mysql -u root -p123456 tiny_light -e "SELECT user_id, COUNT(*) as cnt, MIN(light_date) as earliest, MAX(light_date) as latest FROM tiny_light GROUP BY user_id;" 2>/dev/null`).toString()
+const result = execSync(`${MYSQL_CMD} -e "SELECT user_id, COUNT(*) as cnt, MIN(light_date) as earliest, MAX(light_date) as latest FROM tiny_light GROUP BY user_id;" 2>nul`).toString()
 console.log('\n当前各用户数据：')
 console.log(result)

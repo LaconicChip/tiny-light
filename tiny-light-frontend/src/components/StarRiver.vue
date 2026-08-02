@@ -29,6 +29,7 @@ const todayDoy = dayOfYear(`${now.getFullYear()}-${now.getMonth() + 1}-${now.get
 const pathCoreRef = ref(null)
 const starsGroupRef = ref(null)
 const tooltipRef = ref(null)
+const scrollWrapRef = ref(null)
 const geometry = ref([])
 const monthLabels = ref([])
 const todayPos = ref(null)
@@ -77,6 +78,17 @@ onMounted(() => {
   /* 今日星位置 */
   const todayGeo = geo.find(g => g.day === todayDoy)
   if (todayGeo) todayPos.value = { x: todayGeo.x, y: todayGeo.y }
+
+  /* 手机端：默认滚动到当前月份（否则默认在 1 月，用户看不到自己最近的星）
+     viewBox 宽 1200，当前月份 x 坐标 / 1200 = 比例，乘以 scrollWidth 减去视口一半居中 */
+  if (window.matchMedia('(hover: none) and (pointer: coarse)').matches && scrollWrapRef.value) {
+    const wrap = scrollWrapRef.value
+    requestAnimationFrame(() => {
+      const targetX = todayGeo ? todayGeo.x : 600
+      const scrollTarget = (targetX / 1200) * wrap.scrollWidth - wrap.clientWidth / 2
+      wrap.scrollLeft = Math.max(0, scrollTarget)
+    })
+  }
 })
 
 /* 合并几何 + 真实点亮数据 */
@@ -88,14 +100,16 @@ const stars = computed(() => {
   return geometry.value.map(g => {
     const isLit = lightMap.has(g.day)
     const isToday = g.day === todayDoy
+    // 只有今日星和最近7天的亮星才 pulse，避免 109 颗亮星同时跑 CSS 动画（GPU 大户）
+    const isRecent = isLit && (todayDoy - g.day <= 7) && (todayDoy - g.day >= 0)
     let r
     if (isLit) {
-      r = 2 + g.rSeed * 2 + g.rec * 2.5
-      if (isToday) r = 7
+      r = 3 + g.rSeed * 3 + g.rec * 3.5  // 加大星点:原 2+2+2.5 → 3+3+3.5
+      if (isToday) r = 10  // 今日星:原 7 → 10
     } else {
-      r = 0.8 + g.rSeed * 1.2
+      r = 1.2 + g.rSeed * 1.8  // 未点亮:原 0.8+1.2 → 1.2+1.8
     }
-    return { ...g, isLit, isToday, r, light: lightMap.get(g.day) || null }
+    return { ...g, isLit, isToday, isRecent, r, light: lightMap.get(g.day) || null }
   })
 })
 
@@ -106,6 +120,8 @@ const litCount = computed(() => props.lights.length)
    mousemove 内部不 find，避免高频查询开销 */
 let currentHoverEl = null
 let currentHoverStar = null
+let tipRaf = null
+let tipPendingX = 0, tipPendingY = 0
 function showTooltip(s, e) {
   if (!s.isLit || !s.light) return
   const tip = tooltipRef.value
@@ -122,17 +138,45 @@ function showTooltip(s, e) {
   }
   if (textEl) textEl.textContent = s.light.content || ''
   tip.classList.add('show')
-  moveTooltip(e)
+  // 跟随鼠标定位，始终在右下方，边缘溢出时限制在视口内
+  positionTooltip(e.clientX, e.clientY)
 }
-function moveTooltip(e) {
+/* tooltip 紧贴鼠标（12px偏移），根据可用空间智能选择方向：
+   - 右侧空间够：显示在鼠标右侧，否则左侧（始终紧贴鼠标）
+   - 下方空间够：显示在鼠标下方，否则上方（始终紧贴鼠标）
+   不用 clamp 到视口边缘（会离鼠标太远），翻转方向时也紧贴鼠标另一侧 */
+function positionTooltip(mx, my) {
   const tip = tooltipRef.value
-  if (!tip || !tip.classList.contains('show')) return
-  tip.style.left = Math.min(e.clientX + 16, window.innerWidth - 260) + 'px'
-  tip.style.top = (e.clientY - 10) + 'px'
+  if (!tip) return
+  const tipW = tip.offsetWidth || 240
+  const tipH = tip.offsetHeight || 60
+  const gap = 12  // tooltip 与鼠标的间距
+  // 水平：右侧空间够则右，否则左（紧贴鼠标）
+  const left = mx + gap + tipW <= window.innerWidth - 8
+    ? mx + gap
+    : mx - tipW - gap
+  // 垂直：下方空间够则下，否则上（紧贴鼠标）
+  const top = my + gap + tipH <= window.innerHeight - 8
+    ? my + gap
+    : my - tipH - gap
+  tip.style.left = Math.max(8, left) + 'px'
+  tip.style.top = Math.max(8, top) + 'px'
+}
+/* rAF 节流跟随鼠标，避免高频 mousemove 触发过多 style 写入 */
+function moveTooltip(e) {
+  tipPendingX = e.clientX
+  tipPendingY = e.clientY
+  if (tipRaf === null) {
+    tipRaf = requestAnimationFrame(() => {
+      tipRaf = null
+      positionTooltip(tipPendingX, tipPendingY)
+    })
+  }
 }
 function hideTooltip() {
   const tip = tooltipRef.value
   if (tip) tip.classList.remove('show')
+  if (tipRaf) { cancelAnimationFrame(tipRaf); tipRaf = null }
 }
 
 /* 点击：开详情 + 涟漪 */
@@ -204,7 +248,9 @@ function createRipple(x, y) {
     <p class="river-sub">这一年，你点亮的每一颗星 · 已点亮 {{ litCount }} 天</p>
   </div>
 
-  <svg class="river-svg" viewBox="0 0 1200 600" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+  <div class="river-scroll-outer">
+    <div class="river-scroll-wrap" ref="scrollWrapRef">
+    <svg class="river-svg" viewBox="0 80 1200 420" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="riverGrad" x1="0%" y1="0%" x2="100%" y2="0%">
         <stop offset="0%" stop-color="rgba(201,154,53,0.06)"/>
@@ -218,9 +264,7 @@ function createRipple(x, y) {
         <stop offset="50%" stop-color="rgba(248,227,154,0.35)"/>
         <stop offset="100%" stop-color="rgba(201,154,53,0.15)"/>
       </linearGradient>
-      <filter id="riverBlur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="22"/></filter>
-      <filter id="goldGlow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-      <filter id="goldGlowStrong" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      <filter id="riverBlur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="12"/></filter>
     </defs>
     <path class="river-path-glow" :d="pathD"/>
     <path class="river-path-core" :d="pathD" ref="pathCoreRef"/>
@@ -236,10 +280,9 @@ function createRipple(x, y) {
         :data-day="s.day"
         :style="{ '--pd': s.pd + 's' }"
       >
-        <circle v-if="s.isLit" class="star-glow" :cx="s.x" :cy="s.y" :r="s.r * 3" fill="rgba(237,206,110,0.05)"/>
-        <g :class="{ 'pulse-wrap': s.isLit }">
+        <circle v-if="s.isLit" class="star-glow" :cx="s.x" :cy="s.y" :r="s.r * 3.5" fill="rgba(237,206,110,0.08)" opacity="0"/>
+        <g :class="{ 'pulse-wrap': s.isRecent }">
           <circle class="star-body" :cx="s.x" :cy="s.y" :r="s.r"/>
-          <circle v-if="s.isLit" class="star-body-strong" :cx="s.x" :cy="s.y" :r="s.r"/>
         </g>
         <g v-if="s.isLit && s.r > 3" opacity="0.25">
           <line :x1="s.x - s.r * 2" :y1="s.y" :x2="s.x + s.r * 2" :y2="s.y" stroke="rgba(248,227,154,0.2)" stroke-width="0.4"/>
@@ -247,30 +290,38 @@ function createRipple(x, y) {
         </g>
       </g>
     </g>
-    <g class="month-labels" font-family="'Geist','PingFang SC','Noto Sans SC',sans-serif" fill="#5a5248" font-size="11" opacity="0.55" font-weight="300" letter-spacing="3">
-      <text v-for="(m, i) in monthLabels" :key="i" :x="m.x" :y="m.y + 55" text-anchor="middle">{{ m.name }}</text>
+    <g class="month-labels" font-family="'Geist','PingFang SC','Noto Sans SC',sans-serif" fill="#5a5248" font-size="16" opacity="0.55" font-weight="300" letter-spacing="3">
+      <text v-for="(m, i) in monthLabels" :key="i" :x="m.x" :y="m.y + 70" text-anchor="middle">{{ m.name }}</text>
     </g>
     <g v-if="todayPos">
-      <circle class="today-pulse-1" :cx="todayPos.x" :cy="todayPos.y" fill="none" stroke="rgba(237,206,110,0.3)" stroke-width="1"/>
-      <circle class="today-pulse-2" :cx="todayPos.x" :cy="todayPos.y" fill="none" stroke="rgba(248,227,154,0.12)" stroke-width="0.7"/>
-      <text :x="todayPos.x" :y="todayPos.y - 22" text-anchor="middle" fill="#edce6e" font-size="9" font-family="'Geist Mono',monospace" opacity="0.7" letter-spacing="2">TODAY</text>
+      <circle class="today-pulse-1" :cx="todayPos.x" :cy="todayPos.y" fill="none" stroke="rgba(237,206,110,0.3)" stroke-width="1.2"/>
+      <circle class="today-pulse-2" :cx="todayPos.x" :cy="todayPos.y" fill="none" stroke="rgba(248,227,154,0.12)" stroke-width="0.9"/>
+      <text :x="todayPos.x" :y="todayPos.y - 28" text-anchor="middle" fill="#edce6e" font-size="14" font-family="'Geist Mono',monospace" opacity="0.7" letter-spacing="2">TODAY</text>
     </g>
-  </svg>
+    </svg>
+    </div>
+    <div class="river-scroll-hint">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      横向滑动查看全年
+    </div>
+  </div>
 
   <p class="river-footer">
     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="2"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
     每一颗星，都是你曾被照亮的日子
   </p>
 
-  <div class="tooltip" ref="tooltipRef">
-    <div class="tip-date"></div>
-    <div class="tip-text"></div>
-  </div>
+  <Teleport to="body">
+    <div class="tooltip" ref="tooltipRef">
+      <div class="tip-date"></div>
+      <div class="tip-text"></div>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
 .river-header {
-  margin-bottom: 24px;
+  margin-bottom: 12px;
   opacity: 0;
   transform: translate3d(0, 18px, 0);
   transition: all 0.9s var(--ease-out);
@@ -301,14 +352,72 @@ function createRipple(x, y) {
   margin-left: 32px;
 }
 .river-svg { width: 100%; height: auto; display: block; overflow: visible; contain: layout style paint; }
+
+/* 横向滚动长卷容器：桌面端 width:100% 自适应；手机端 SVG 设 min-width 横向滑动 */
+.river-scroll-outer {
+  position: relative;  /* 给 hint 的 absolute 定位做参照 */
+  width: 100%;
+}
+.river-scroll-wrap {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;  /* Firefox 隐藏滚动条 */
+  -ms-overflow-style: none;
+}
+.river-scroll-wrap::-webkit-scrollbar { display: none; }  /* Chrome/Safari 隐藏滚动条 */
+/* 滑动提示：absolute 定位在容器水平居中，垂直在 SVG 底部区域。
+   不在 scroll-wrap 内，不受横向滚动影响，常驻显示 */
+.river-scroll-hint {
+  display: none;  /* 桌面端不显示 */
+  position: absolute;
+  bottom: 8px;  /* 靠近 SVG 底部 */
+  left: 50%;
+  transform: translateX(-50%);
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-sans);
+  font-size: 0.7rem;
+  font-weight: 300;
+  color: var(--gold-3);
+  letter-spacing: 0.12em;
+  opacity: 0.6;
+  pointer-events: none;  /* 不阻挡 SVG 点击 */
+  z-index: 2;
+}
+.river-scroll-hint svg { width: 12px; height: 12px; }
+@keyframes hintNudge {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(4px, 0, 0); }
+}
+.river-scroll-hint svg { animation: hintNudge 2s ease-in-out infinite; }
+
+/* 手机端：SVG 设固定宽度，横向滑动查看全年 */
+@media (hover: none) and (pointer: coarse) {
+  .river-scroll-wrap {
+    /* 左右渐变遮罩：暗示可滑动，淡出边缘。mask-image 不跟随滚动，比伪元素可靠 */
+    mask-image: linear-gradient(to right, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
+  }
+  .river-scroll-wrap .river-svg {
+    min-width: 1200px;  /* 加大:900→1200,保证月份字和星点清晰可点 */
+  }
+  .river-scroll-hint {
+    display: flex;  /* 手机端常驻显示滑动提示(absolute 定位,不受滚动影响) */
+  }
+}
 .river-star { cursor: pointer; transition: transform 0.35s var(--ease-spring); transform-origin: center; transform-box: fill-box; }
 .river-star .star-body { transition: r 0.35s var(--ease-spring); }
-.river-star.lit .star-body { fill: var(--gold-2); filter: url(#goldGlow); }
-/* 预置强发光层：hover 时淡入（opacity 可合成），替代直接切换滤镜（每次 hover 整组重算模糊） */
-.star-body-strong { fill: var(--gold-2); filter: url(#goldGlowStrong); opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
-.river-star.lit:hover .star-body-strong { opacity: 1; }
-/* 脉动动画挂到无滤镜的包裹组：滤镜结果缓存为纹理，每帧只调组透明度，109 颗亮星不再重算模糊
-   不给 will-change：109 颗星各建合成层会超 GPU 预算，反而更卡 */
+/* 移除 SVG filter（goldGlow）：109 颗亮星每帧重算 feGaussianBlur 是 GPU 大户。
+   star-glow circle 默认隐藏，仅 hover 时淡入，避免每颗星都有光圈在浅色背景上突兀。
+   pointer-events:all 确保透明状态下仍接收鼠标事件，作为星点的命中区域（star-body 半径仅 3-9px 太小）。 */
+.river-star.lit .star-body { fill: var(--gold-2); }
+.river-star .star-glow { transition: opacity 0.3s ease; pointer-events: all; }
+.river-star.lit:hover .star-glow { opacity: 1; fill: rgba(248,227,154,0.18); }
+/* 脉动动画只挂到今日星+最近7天亮星（~8颗），避免 109 颗亮星同时跑 CSS 动画。
+   动画挂到无滤镜的包裹组：每帧只调组透明度。 */
 .pulse-wrap { animation: starPulse 3s ease-in-out infinite; animation-delay: var(--pd, 0s); }
 .river-star.dim .star-body { fill: #b0a898; opacity: 0.3; }
 .river-star.dim .star-glow { opacity: 0; }
@@ -319,23 +428,23 @@ function createRipple(x, y) {
   50% { opacity: 0.7; }
 }
 .river-path-glow { fill: none; stroke: url(#riverGrad); stroke-width: 90; stroke-linecap: round; opacity: 0.1; filter: url(#riverBlur); }
-.river-path-core { fill: none; stroke: url(#riverGradCore); stroke-width: 1.5; stroke-linecap: round; opacity: 0.2; stroke-dasharray: 3 8; animation: flowDash 25s linear infinite; }
-@keyframes flowDash { to { stroke-dashoffset: -220; } }
+/* 移除 flowDash 动画：stroke-dashoffset 是 SVG paint 属性，每帧触发 repaint（非合成层）。
+   25s 慢但持续重绘，是隐性性能税。星点动态已足够，虚线静态即可。 */
+.river-path-core { fill: none; stroke: url(#riverGradCore); stroke-width: 1.5; stroke-linecap: round; opacity: 0.2; stroke-dasharray: 3 8; }
 
-/* 今日星脉冲环：原 SMIL <animate> 改 CSS animation（移动端 SMIL 性能不如 CSS）
-   复刻原 values: r 8;20;8 + opacity 0.5;0;0.5，dur 3s */
+/* 今日星脉冲环：配合今日星半径 10 加大（原 r 8;20;8 → r 12;30;12） */
 .today-pulse-1 { animation: todayPulse1 3s ease-in-out infinite; }
 @keyframes todayPulse1 {
-  0%, 100% { r: 8; opacity: 0.5; }
-  50% { r: 20; opacity: 0; }
+  0%, 100% { r: 12; opacity: 0.5; }
+  50% { r: 30; opacity: 0; }
 }
 .today-pulse-2 { animation: todayPulse2 3s ease-in-out 0.5s infinite; }
 @keyframes todayPulse2 {
-  0%, 100% { r: 12; opacity: 0.3; }
-  50% { r: 26; opacity: 0; }
+  0%, 100% { r: 18; opacity: 0.3; }
+  50% { r: 38; opacity: 0; }
 }
 .river-footer {
-  margin-top: 12px;
+  margin-top: 6px;
   font-family: var(--font-sans);
   font-size: 0.7rem;
   font-weight: 300;

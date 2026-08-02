@@ -32,23 +32,34 @@
 
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
-body{font-family:var(--font-sans);font-weight:300;color:var(--text-light);background:var(--platinum-1);overflow-x:hidden;line-height:1.7}
+body{font-family:var(--font-sans);font-weight:300;color:var(--text-light);background:var(--platinum-1);overflow-x:hidden;line-height:1.7;-webkit-user-select:none;-moz-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
 #app{position:relative}
+/* 例外：输入框、文本域、详情弹窗内容可选中（用户需要复制自己的微光文字） */
+input,textarea,.modal-content,.tip-text{ -webkit-user-select:text;-moz-user-select:text;user-select:text }
 
 button{font-family:inherit}
 
-/* GPU 加速：动画元素统一声明（闪烁星已改 canvas，不再需要 DOM 合成层管理） */
-.hero-emblem,.moon-glow,.scroll-dot,.lit-glow,.cursor-glow,.river-path-core,.aurora-band,.shooting-star{will-change:transform,opacity;contain:layout style}
+/* GPU 合成层：仅对需要动画的元素声明 will-change。
+   过多的 will-change 会创建过多合成层，反而增加 GPU 内存占用。
+   aurora/moon-glow 的 blur 滤镜本身就在合成层上渲染，无需 will-change。 */
+.hero-emblem,.scroll-dot,.cursor-glow,.shooting-star{will-change:transform,opacity;contain:layout style}
 
 /* 噪点纹理 */
 .noise{position:fixed;inset:0;z-index:9999;pointer-events:none;opacity:0.025;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");background-size:200px}
 
-/* 背景渐变：深空 -> 紫暮 -> 白金晨曦，高度跟随内容（#app position:relative） */
+/* 背景渐变：深空 -> 紫暮 -> 白金晨曦，高度跟随内容（#app position:relative）
+   手机端基准：过渡区在 ~50% 完成（Stats 落在过渡区，星光河标题~57%已在浅色区） */
 .bg-gradient{position:absolute;top:0;left:0;right:0;height:100%;z-index:0;pointer-events:none;background:linear-gradient(180deg,var(--night-1) 0%,var(--night-2) 8%,var(--night-3) 18%,#252548 26%,#38305a 33%,#524868 40%,#706270 46%,#8e8082 50%,#b0a398 55%,#cdc4b2 60%,var(--platinum-3) 68%,var(--platinum-2) 80%,var(--platinum-1) 100%)}
+/* 桌面端：内容更紧凑，星光河标题在 ~57% 位置。
+   手机端过渡区在 50% 完成，桌面端需提前到 57% 完成过渡，与手机端视觉一致。
+   深色区拉到 45%，过渡区 45-57%，57% 后为浅色区，星光河落在浅色背景上。 */
+@media (min-width:769px){
+  .bg-gradient{background:linear-gradient(180deg,var(--night-1) 0%,var(--night-2) 10%,var(--night-3) 22%,#252548 30%,#38305a 38%,#524868 45%,#706270 50%,#8e8082 54%,#b0a398 57%,#cdc4b2 62%,var(--platinum-3) 70%,var(--platinum-2) 82%,var(--platinum-1) 100%)}
+}
 
 /* 极光飘带 */
 .bg-aurora{position:absolute;top:0;left:0;right:0;height:1800px;z-index:0;pointer-events:none;overflow:hidden}
-.aurora-band{position:absolute;width:160%;height:450px;filter:blur(70px);opacity:0.12;border-radius:50%;transform:translateZ(0)}
+.aurora-band{position:absolute;width:160%;height:450px;filter:blur(45px);opacity:0.12;border-radius:50%;transform:translateZ(0)}
 .aurora-1{top:8%;left:-40%;background:radial-gradient(ellipse,rgba(120,100,180,0.4),transparent 70%);animation:drift1 28s ease-in-out infinite}
 .aurora-2{top:18%;left:-20%;background:radial-gradient(ellipse,rgba(200,160,100,0.3),transparent 70%);animation:drift2 35s ease-in-out infinite}
 .aurora-3{top:5%;left:-15%;background:radial-gradient(ellipse,rgba(80,120,180,0.25),transparent 70%);animation:drift3 24s ease-in-out infinite}
@@ -83,26 +94,22 @@ button{font-family:inherit}
   *,*::before,*::after{animation-duration:0.01ms!important;animation-iteration-count:1!important;transition-duration:0.01ms!important}
 }
 
-/* content-visibility: 不在视口的 section 跳过渲染（大幅提升滚动性能，无视觉损失）
-   contain-intrinsic-size 给出预估高度，避免滚动条跳动 */
-.section-stats,.section-river,.section-memories,.footer{
+/* content-visibility:auto 只用于 footer（简单内容无接缝风险）。
+   section 不用：滚动时 section 边界会产生渲染接缝（横线），且与散落 absolute 定位冲突。
+   section 用 contain:layout style 隔离渲染即可。 */
+.section-stats,.section-river,.section-memories{
+  contain:layout style;
+}
+.footer{
   content-visibility:auto;
-  contain-intrinsic-size:auto 500px;
+  contain-intrinsic-size:auto 200px;
 }
 
-/* 滚动时移除耗性能的合成层：aurora blur(70px) + moon-glow blur(30px) 的合成本身
-   （不只是 animation）是 GPU 开销大头。visibility:hidden 让浏览器跳过合成，
-   滚停 150ms 后恢复。滚动时这些背景元素在视口边缘/被内容遮挡，隐藏无视觉差。 */
-body.scrolling .bg-aurora,
-body.scrolling .moon-glow{
-  visibility:hidden;
-}
-body.scrolling .hero-emblem,
-body.scrolling .hero-title .gold,
-body.scrolling .scroll-hint-text,
-body.scrolling .scroll-dot{
-  animation-play-state:paused;
-}
+/* 滚动时不暂停 CSS 动画。
+   之前的 animation-play-state:paused 会在滚停恢复时产生 opacity 突跳（moonBreath
+   从 0.6→1 的恢复瞬间 = 高亮闪烁），画面割裂。
+   这些动画元素都有 contain + will-change，已在独立合成层上运行，不阻塞主线程滚动。
+   滚动性能收益主要来自 canvas rAF 冻结（见 App.vue bgPaused），CSS 动画无需暂停。 */
 
 /* ============ 移动端性能降级（hover:none + pointer:coarse = 真触屏设备） ============
    玻璃态：backdrop-filter blur(18px) 在中低端安卓/iOS 早期版本是性能黑洞（默认 CPU 渲染），
@@ -115,5 +122,5 @@ body.scrolling .scroll-dot{
     --glass-dark:rgba(15,15,40,0.72);  /* 加深补偿失去的折射 */
   }
   .noise{display:none}
-  .aurora-band{filter:blur(35px)}
+  .aurora-band{filter:blur(30px)}
 }

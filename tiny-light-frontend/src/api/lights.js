@@ -1,13 +1,10 @@
 import axios from 'axios'
 
-// 从 localStorage 取 userId，没有就生成一个并存
+// 【临时共享模式】全设备统一用户，方便多终端测试。
+// 恢复多用户时改回：从 localStorage 取 userId，没有就生成随机 ID。
+const SHARED_USER_ID = 'shared-user'
 export function getUserId() {
-  let id = localStorage.getItem('userId')
-  if (!id) {
-    id = 'user-' + Math.random().toString(36).slice(2, 10)
-    localStorage.setItem('userId', id)
-  }
-  return id
+  return SHARED_USER_ID
 }
 
 // axios 实例：所有请求自动加 /api 前缀，走 Vite 代理转发到后端 8080

@@ -121,6 +121,8 @@ let bgVisibilityHandler = null
 let bgPaused = false
 let bgLoopFn = null  // 暴露 loop 供滚动暂停后重启
 let scrollStopTimer = null
+let idleTimer = null  // 静止计时器：3秒无交互后完全停止 canvas
+let bgIdle = false    // 是否进入静止休眠
 const burstParticles = []
 function seededRand(seed) {
   const x = Math.sin(seed * 12.9898) * 43758.5453
@@ -131,11 +133,17 @@ function initBackgroundCanvas() {
   const cv = particleCanvasRef.value
   if (!cv) return
   const ctx = cv.getContext('2d', { alpha: true })
-  const dpr = Math.min(window.devicePixelRatio || 1, 2)
+  // 移动端 DPR 限 1.5（填充率比 2.0 低 44%），桌面端限 2.0
+  const isMobile = window.matchMedia('(hover: none) and (pointer: coarse)').matches
+  const dpr = Math.min(window.devicePixelRatio || 1, isMobile ? 1.5 : 2)
+  // 移动端减少粒子数（60→40），降低每帧计算量
+  const particleCount = isMobile ? 40 : 60
+  // 闪烁星：150→100（桌面）/ 70（移动），背景慢动画不需要高密度星点
+  const starCount = isMobile ? 70 : 100
   let w, h
   // 预生成闪烁星 + 十字闪光（确定性，刷新一致）
   const stars = []
-  for (let i = 0; i < 150; i++) {
+  for (let i = 0; i < starCount; i++) {
     const r1 = seededRand(i + 1), r2 = seededRand(i + 100), r3 = seededRand(i + 200)
     const r4 = seededRand(i + 300), r5 = seededRand(i + 400), r6 = seededRand(i + 500)
     const r7 = seededRand(i + 600), r8 = seededRand(i + 700), r9 = seededRand(i + 800)
@@ -147,7 +155,7 @@ function initBackgroundCanvas() {
     })
   }
   const sparkles = []
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 6; i++) {
     sparkles.push({
       x: seededRand(i + 900), y: seededRand(i + 1000) * 0.55,
       dur: 5 + seededRand(i + 1100) * 4, delay: seededRand(i + 1200) * 8,
@@ -176,7 +184,7 @@ function initBackgroundCanvas() {
     cv.style.height = h + 'px'
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ps.length = 0
-    for (let i = 0; i < 60; i++) ps.push(makeParticle(true))
+    for (let i = 0; i < particleCount; i++) ps.push(makeParticle(true))
   }
   resize()
   bgResizeHandler = resize
@@ -191,11 +199,17 @@ function initBackgroundCanvas() {
     }
   }
   document.addEventListener('visibilitychange', bgVisibilityHandler)
+  let lastDraw = 0
   function loop(t) {
-    if (bgPaused) { bgRaf = null; return }
+    if (bgPaused || bgIdle) { bgRaf = null; return }
+    // 帧率节流到 ~30fps（33ms 间隔）：背景慢动画无需高帧率，
+    // 进一步降低 GPU 占用（从 40fps 降到 30fps 减少 25% 绘制）
+    if (t - lastDraw < 33) { bgRaf = requestAnimationFrame(loop); return }
+    lastDraw = t
     const time = (t - start) / 1000
     ctx.clearRect(0, 0, w, h)
-    // 1. 金尘粒子（最底层）
+    // 1. 金尘粒子（最底层）—— 移除 glow halo（原 gold&&r>1.2 时多一次 arc+fill，
+    //    占金尘绘制量 50%+，opacity 0.08 几乎不可见，删除无损视觉）
     for (let i = 0; i < ps.length; i++) {
       const p = ps[i]
       p.x += p.vx + Math.sin(p.p) * 0.08
@@ -206,20 +220,15 @@ function initBackgroundCanvas() {
       ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
       ctx.fillStyle = p.gold ? `rgba(248,227,154,${o})` : `rgba(245,242,235,${o * 0.3})`
       ctx.fill()
-      if (p.gold && p.r > 1.2) {
-        ctx.beginPath()
-        ctx.arc(p.x, p.y, p.r * 2.5, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(248,227,154,${o * 0.08})`
-        ctx.fill()
-      }
       if (p.y < -15 || p.x < -15 || p.x > w + 15) ps[i] = makeParticle(false)
     }
-    // 2. 闪烁星
+    // 2. 闪烁星 —— 跳过透明度极低的星（<0.05 几乎不可见，省掉 arc+fill）
     for (let i = 0; i < stars.length; i++) {
       const s = stars[i]
       const phase = ((time + s.delay) % s.dur) / s.dur
       const k = (1 - Math.cos(phase * Math.PI * 2)) / 2
       const op = s.minOp + (s.maxOp - s.minOp) * k
+      if (op < 0.05) continue
       const r = (s.sz * (1 + 0.3 * k)) / 2
       const x = s.x * w, y = s.y * h
       ctx.beginPath()
@@ -275,6 +284,37 @@ function initBackgroundCanvas() {
   }
   bgLoopFn = loop  // 暴露给滚动暂停后重启
   bgRaf = requestAnimationFrame(loop)
+
+  /* 静止休眠：3秒无交互后完全停止 canvas rAF，GPU 占用归零。
+     鼠标移动/触摸/滚动时唤醒重启。这是 GPU 100% 的核心解法：
+     页面静止时背景星点/粒子虽好看但不需要持续重绘。 */
+  function scheduleIdle() {
+    clearTimeout(idleTimer)
+    bgIdle = false
+    idleTimer = setTimeout(() => {
+      bgIdle = true
+      // rAF 循环会在下一帧检测 bgIdle 并自动停止
+    }, 3000)
+  }
+  function wakeFromIdle() {
+    if (bgIdle) {
+      bgIdle = false
+      start = performance.now()  // 重置时间基准避免跳变
+      if (bgRaf === null) bgRaf = requestAnimationFrame(loop)
+    }
+    scheduleIdle()
+  }
+  scheduleIdle()  // 初始启动休眠计时
+  // 鼠标移动/触摸唤醒（桌面端鼠标移动频繁，用 rAF 节流避免过度唤醒）
+  let wakeRaf = null
+  function onUserActivity() {
+    if (wakeRaf === null) {
+      wakeRaf = requestAnimationFrame(() => { wakeRaf = null; wakeFromIdle() })
+    }
+  }
+  document.addEventListener('mousemove', onUserActivity, { passive: true })
+  document.addEventListener('touchstart', onUserActivity, { passive: true })
+  document.addEventListener('keydown', onUserActivity, { passive: true })
 }
 
 /* ===== 背景动效 2：流星 ===== */
@@ -387,16 +427,24 @@ function initParallax() {
   }
   parallaxScrollHandler = () => {
     if (!parallaxTicking) { requestAnimationFrame(update); parallaxTicking = true }
-    // 滚动时冻结背景：canvas 停止重绘 + CSS 动画暂停
+    // 滚动时冻结 canvas rAF（主线程性能收益主要来源）。
+    // 不再操作 classList 暂停 CSS 动画 —— paused→running 恢复时 opacity 突跳会产生高亮闪烁。
+    // CSS 动画在 contain+will-change 合成层上运行，不阻塞滚动。
     if (!bgPaused) {
       bgPaused = true
-      document.body.classList.add('scrolling')
+    }
+    // 滚动也唤醒 idle 休眠（用户在活动）
+    if (bgIdle) {
+      bgIdle = false
+      clearTimeout(idleTimer)
     }
     clearTimeout(scrollStopTimer)
     scrollStopTimer = setTimeout(() => {
-      bgPaused = false
-      document.body.classList.remove('scrolling')
-      if (bgRaf === null && bgLoopFn) bgRaf = requestAnimationFrame(bgLoopFn)
+      if (bgPaused) {  // 只在确实处于滚动态时才恢复
+        bgPaused = false
+        // 滚停后如果不在 idle 休眠，恢复 canvas；idle 计时由 onUserActivity 管理
+        if (!bgIdle && bgRaf === null && bgLoopFn) bgRaf = requestAnimationFrame(bgLoopFn)
+      }
     }, 150)
   }
   window.addEventListener('scroll', parallaxScrollHandler, { passive: true })
@@ -425,13 +473,20 @@ function initReveal() {
 
 /* ===== 生命周期 ===== */
 onMounted(async () => {
+  // 首屏分阶段初始化：先启动可见的背景效果，再延后非关键功能
+  // 避免首帧同时创建 18 个 CSS animation 合成层 + canvas 初始化 + 数据请求
   initBackgroundCanvas()
-  initCursor()
-  initBurst()
   initParallax()
   initReveal()
-  schedShoot()
-  if (!prm) { setTimeout(shoot, 1500); setTimeout(shoot, 3500) }
+  // 延后 2 帧再启动 cursor/burst/shoot（非首屏关键路径）
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      initCursor()
+      initBurst()
+      schedShoot()
+      if (!prm) { setTimeout(shoot, 1500); setTimeout(shoot, 3500) }
+    })
+  })
 
   try {
     await refreshAll()
@@ -634,7 +689,7 @@ onUnmounted(() => {
   height: 380px;
   border-radius: 50%;
   background: radial-gradient(circle, rgba(248,227,154,0.1) 0%, rgba(237,206,110,0.03) 40%, transparent 70%);
-  filter: blur(30px);
+  filter: blur(18px);
   animation: moonBreath 8s ease-in-out infinite;
   pointer-events: none;
 }
@@ -759,7 +814,7 @@ onUnmounted(() => {
 }
 
 .section-input { padding: clamp(36px, 6vh, 56px) 0 24px; position: relative; }
-.section-stats { padding: 32px 0 clamp(48px, 7vh, 80px); position: relative; min-height: 150px; }
+.section-stats { padding: 32px 0 clamp(48px, 7vh, 80px); position: relative; min-height: 180px; }
 .section-river { padding: clamp(24px, 4vh, 40px) 0 36px; position: relative; }
 .section-memories { padding: clamp(32px, 5vh, 48px) 0 24px; position: relative; }
 
