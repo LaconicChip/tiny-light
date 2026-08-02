@@ -74,7 +74,15 @@ async function handleSubmit({ content, mood }) {
   try {
     await createLight({ content, mood })
     await refreshAll()
-    if (!prm) { shoot(); setTimeout(shoot, 300) } // 庆祝流星
+    if (!prm) {
+      // 从「点亮今天」按钮位置爆发金色粒子
+      const btn = document.querySelector('.light-btn')
+      if (btn) {
+        const r = btn.getBoundingClientRect()
+        burstAt(r.left + r.width / 2, r.top + r.height / 2, 18, 0.85)
+      }
+      shoot(); setTimeout(shoot, 300) // 庆祝流星
+    }
   } catch (e) {
     showError(e.response?.data?.error || '点亮失败')
   }
@@ -229,31 +237,34 @@ function initCursor() {
 
 /* ===== 背景动效 5：点击爆发粒子 ===== */
 let burstClickHandler = null
-function initBurst() {
-  if (prm || touch) return
+function burstAt(x, y, count = 10, goldRatio = 0.7) {
+  if (prm) return
   const container = burstContainerRef.value
   if (!container) return
-  burstClickHandler = (e) => {
-    if (e.target.closest('button,textarea,.mood-tag,.river-star,.memory-card,.input-card,.scroll-hint,.light-btn')) return
-    const bx = e.clientX, by = e.clientY
-    for (let i = 0; i < 10; i++) {
-      const p = document.createElement('div')
-      p.className = 'burst-particle'
-      const ang = (Math.PI * 2 / 10) * i + Math.random() * 0.4
-      const spd = 1.5 + Math.random() * 2.5
-      const isGold = Math.random() > 0.3
-      p.style.cssText = `left:${bx}px;top:${by}px;background:${isGold ? '#f8e39a' : '#f5f2eb'};box-shadow:0 0 6px ${isGold ? 'rgba(237,206,110,0.4)' : 'transparent'};opacity:${isGold ? 0.8 : 0.4};`
-      container.appendChild(p)
-      let x = 0, y = 0, vx = Math.cos(ang) * spd, vy = Math.sin(ang) * spd - 1, life = 1
-      function anim() {
-        x += vx; y += vy; vy += 0.04; life -= 0.02
-        if (life <= 0) { p.remove(); return }
-        p.style.transform = `translate3d(${x}px,${y}px,0) scale(${life})`
-        p.style.opacity = life * (isGold ? 0.7 : 0.3)
-        requestAnimationFrame(anim)
-      }
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div')
+    p.className = 'burst-particle'
+    const ang = (Math.PI * 2 / count) * i + Math.random() * 0.4
+    const spd = 1.5 + Math.random() * 2.5
+    const isGold = Math.random() < goldRatio
+    p.style.cssText = `left:${x}px;top:${y}px;background:${isGold ? '#f8e39a' : '#f5f2eb'};box-shadow:0 0 6px ${isGold ? 'rgba(237,206,110,0.4)' : 'transparent'};opacity:${isGold ? 0.8 : 0.4};`
+    container.appendChild(p)
+    let dx = 0, dy = 0, vx = Math.cos(ang) * spd, vy = Math.sin(ang) * spd - 1, life = 1
+    function anim() {
+      dx += vx; dy += vy; vy += 0.04; life -= 0.02
+      if (life <= 0) { p.remove(); return }
+      p.style.transform = `translate3d(${dx}px,${dy}px,0) scale(${life})`
+      p.style.opacity = life * (isGold ? 0.7 : 0.3)
       requestAnimationFrame(anim)
     }
+    requestAnimationFrame(anim)
+  }
+}
+function initBurst() {
+  if (prm || touch) return
+  burstClickHandler = (e) => {
+    if (e.target.closest('button,textarea,.mood-tag,.river-star,.memory-card,.input-card,.scroll-hint,.light-btn')) return
+    burstAt(e.clientX, e.clientY, 10, 0.7)
   }
   document.addEventListener('click', burstClickHandler)
 }
@@ -441,7 +452,9 @@ onUnmounted(() => {
     </div>
   </div>
 
-  <LightDetail v-if="selectedLight" :light="selectedLight" @close="handleClose" />
+  <Transition name="modal" appear>
+    <LightDetail v-if="selectedLight" :light="selectedLight" @close="handleClose" />
+  </Transition>
 </template>
 
 <style scoped>

@@ -131,51 +131,50 @@ const showForm = (t) => !t || isEditing.value
 
 <template>
   <div class="input-card" ref="cardRef">
-    <!-- 未点亮 或 编辑态：表单 -->
-    <template v-if="showForm(todayLight)">
-      <div class="input-date">
-        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 4v4l2.5 2.5"/></svg>
-        {{ dateLabel }}
+    <Transition mode="out-in" name="swap">
+      <!-- 未点亮 或 编辑态：表单 -->
+      <div v-if="showForm(todayLight)" key="form" class="form-state">
+        <div class="input-date">
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 4v4l2.5 2.5"/></svg>
+          {{ dateLabel }}
+        </div>
+        <div class="input-prompt">{{ isEditing ? '修改今天的微光' : '今天，是什么照亮了你？' }}</div>
+        <textarea
+          v-model="content"
+          class="input-textarea"
+          rows="3"
+          maxlength="200"
+          placeholder="写下今天的微光——一杯热茶、一个微笑、一阵晚风……"
+        />
+        <div class="mood-tags">
+          <span
+            v-for="m in moods"
+            :key="m.key"
+            :class="['mood-tag', { selected: mood === m.key }]"
+            @click="mood = m.key"
+          >
+            <span class="mood-icon" v-html="m.svg"></span>
+            {{ m.key }}
+          </span>
+        </div>
+        <p v-if="content.trim() && !mood" class="mood-hint">先选个心情吧</p>
+        <div class="form-actions">
+          <button v-if="isEditing" class="ghost-btn" @click="cancelEdit">取消</button>
+          <button
+            ref="btnRef"
+            class="light-btn"
+            :disabled="!content.trim() || !mood"
+            @click="isEditing ? saveEdit() : submit()"
+          >
+            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0l1.8 5.5L16 8l-6.2 2.5L8 16l-1.8-5.5L0 8l6.2-2.5z"/></svg>
+            {{ isEditing ? '保存修改' : '点亮今天' }}
+          </button>
+        </div>
       </div>
-      <div class="input-prompt">{{ isEditing ? '修改今天的微光' : '今天，是什么照亮了你？' }}</div>
-      <textarea
-        v-model="content"
-        class="input-textarea"
-        rows="3"
-        maxlength="200"
-        placeholder="写下今天的微光——一杯热茶、一个微笑、一阵晚风……"
-      />
-      <div class="mood-tags">
-        <span
-          v-for="m in moods"
-          :key="m.key"
-          :class="['mood-tag', { selected: mood === m.key }]"
-          @click="mood = m.key"
-        >
-          <span class="mood-icon" v-html="m.svg"></span>
-          {{ m.key }}
-        </span>
-      </div>
-      <p v-if="content.trim() && !mood" class="mood-hint">先选个心情吧</p>
-      <div class="form-actions">
-        <button v-if="isEditing" class="ghost-btn" @click="cancelEdit">取消</button>
-        <button
-          ref="btnRef"
-          class="light-btn"
-          :disabled="!content.trim() || !mood"
-          @click="isEditing ? saveEdit() : submit()"
-        >
-          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0l1.8 5.5L16 8l-6.2 2.5L8 16l-1.8-5.5L0 8l6.2-2.5z"/></svg>
-          {{ isEditing ? '保存修改' : '点亮今天' }}
-        </button>
-      </div>
-    </template>
-
-    <!-- 已点亮 + 查看态 -->
-    <template v-else>
-      <div class="lit-state show">
+      <!-- 已点亮 + 查看态 -->
+      <div v-else key="lit" class="lit-state show">
         <div class="lit-glow"></div>
-        <div class="lit-quote">"{{ todayLight.content }}"</div>
+        <div class="lit-quote">{{ todayLight.content }}</div>
         <div class="lit-meta">
           <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="5"/></svg>
           LIT · {{ todayLight.mood }}
@@ -191,7 +190,7 @@ const showForm = (t) => !t || isEditing.value
           </button>
         </div>
       </div>
-    </template>
+    </Transition>
   </div>
 </template>
 
@@ -382,43 +381,46 @@ const showForm = (t) => !t || isEditing.value
 .light-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* 已点亮态 */
-.lit-state { text-align: center; padding: 16px 0; }
+.lit-state { text-align: center; padding: 28px 0 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 280px; }
 .lit-glow {
-  width: 60px;
-  height: 60px;
-  margin: 0 auto 20px;
+  width: 88px;
+  height: 88px;
+  margin: 0 auto 28px;
   border-radius: 50%;
-  background: radial-gradient(circle, var(--gold-4) 0%, var(--gold-2) 35%, var(--gold-1) 60%, transparent 75%);
+  background: radial-gradient(circle, var(--gold-5) 0%, var(--gold-4) 25%, var(--gold-2) 50%, var(--gold-1) 70%, transparent 82%);
   animation: starPulse 3s ease-in-out infinite;
 }
 @keyframes starPulse {
-  0%, 100% { box-shadow: 0 0 20px var(--gold-glow-mid), 0 0 50px rgba(237, 206, 110, 0.12); transform: scale(1); }
-  50% { box-shadow: 0 0 35px rgba(237, 206, 110, 0.5), 0 0 70px rgba(237, 206, 110, 0.2); transform: scale(1.08); }
+  0%, 100% { box-shadow: 0 0 28px var(--gold-glow-mid), 0 0 64px rgba(237, 206, 110, 0.16); transform: scale(1); }
+  50% { box-shadow: 0 0 44px rgba(237, 206, 110, 0.55), 0 0 88px rgba(237, 206, 110, 0.24); transform: scale(1.06); }
 }
 .lit-quote {
   font-family: var(--font-sans);
-  font-size: 1.1rem;
+  font-size: 1.25rem;
   font-weight: 300;
   color: var(--platinum-1);
   line-height: 2;
   letter-spacing: 0.05em;
-  margin-bottom: 12px;
+  margin-bottom: 18px;
+  max-width: 360px;
 }
+.lit-quote::before { content: '\201C'; color: var(--gold-3); margin-right: 4px; opacity: 0.6; }
+.lit-quote::after { content: '\201D'; color: var(--gold-3); margin-left: 4px; opacity: 0.6; }
 .lit-meta {
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   color: var(--gold-3);
-  letter-spacing: 0.2em;
+  letter-spacing: 0.22em;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  margin-bottom: 18px;
+  margin-bottom: 26px;
 }
 .lit-actions {
   display: flex;
   justify-content: center;
-  gap: 10px;
+  gap: 12px;
 }
 .lit-action-btn {
   display: inline-flex;
@@ -446,6 +448,12 @@ const showForm = (t) => !t || isEditing.value
   color: #e07070;
   background: rgba(196, 69, 69, 0.08);
 }
+
+/* 表单 ↔ 已点亮 切换过渡（淡入淡出 + 轻微位移） */
+.swap-enter-active { transition: opacity 0.32s var(--ease-out), transform 0.32s var(--ease-out); }
+.swap-leave-active { transition: opacity 0.24s var(--ease-out), transform 0.24s var(--ease-out); }
+.swap-enter-from { opacity: 0; transform: translate3d(0, 12px, 0); }
+.swap-leave-to { opacity: 0; transform: translate3d(0, -8px, 0); }
 
 @media (max-width: 768px) {
   .input-card { margin-left: 0; max-width: 100%; transform: perspective(1000px) rotate(-0.6deg) translate3d(0, 40px, 0); }
