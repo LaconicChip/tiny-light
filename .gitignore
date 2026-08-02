@@ -50,4 +50,4 @@ src/main/resources/static/
 deploy/
 
 ### 临时文件 ###
-docs/
+/docs/
