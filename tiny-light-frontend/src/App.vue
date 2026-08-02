@@ -200,11 +200,34 @@ function initBackgroundCanvas() {
   }
   document.addEventListener('visibilitychange', bgVisibilityHandler)
   let lastDraw = 0
+  // 热节流自适应：监测真实 rAF 间隔，设备降频时主动降帧率减负降温，恢复后升回。
+  // 仅在热节流时生效，冷状态全速 30fps。升级阈值 28/40ms，恢复阈值 22ms（带迟滞防抖动）。
+  let degradeLevel = 0
+  let lastRaf = 0
+  const rafSamples = []
+  const SAMPLE_WIN = 30
+  const throttleMs = () => (degradeLevel === 0 ? 33 : degradeLevel === 1 ? 50 : 66)
   function loop(t) {
     if (bgPaused || bgIdle) { bgRaf = null; return }
-    // 帧率节流到 ~30fps（33ms 间隔）：背景慢动画无需高帧率，
-    // 进一步降低 GPU 占用（从 40fps 降到 30fps 减少 25% 绘制）
-    if (t - lastDraw < 33) { bgRaf = requestAnimationFrame(loop); return }
+    // 真实 rAF 间隔反映设备刷新能力（不受下方节流干扰）；跳过 >200ms 异常间隔（休眠/切标签唤醒）
+    if (lastRaf > 0) {
+      const rafDt = t - lastRaf
+      if (rafDt < 200) {
+        rafSamples.push(rafDt)
+        if (rafSamples.length > SAMPLE_WIN) rafSamples.shift()
+        if (rafSamples.length >= SAMPLE_WIN) {
+          let avg = 0
+          for (let i = 0; i < rafSamples.length; i++) avg += rafSamples[i]
+          avg /= rafSamples.length
+          if (avg > 28 && degradeLevel === 0) { degradeLevel = 1; rafSamples.length = 0 }
+          else if (avg > 40 && degradeLevel === 1) { degradeLevel = 2; rafSamples.length = 0 }
+          else if (avg < 22 && degradeLevel > 0) { degradeLevel--; rafSamples.length = 0 }
+        }
+      }
+    }
+    lastRaf = t
+    // 帧率节流：正常 ~30fps(33ms)；热节流降级时降到 20fps(50ms)/15fps(66ms) 减负降温
+    if (t - lastDraw < throttleMs()) { bgRaf = requestAnimationFrame(loop); return }
     lastDraw = t
     const time = (t - start) / 1000
     ctx.clearRect(0, 0, w, h)
