@@ -42,3 +42,6 @@ CLAUDE.md
 ### Node ###
 node_modules/
 /package-lock.json
+
+### 构建产物：前端嵌入后端的静态文件 ###
+src/main/resources/static/

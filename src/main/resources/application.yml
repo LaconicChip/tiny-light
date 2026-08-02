@@ -10,7 +10,7 @@ spring:
 mybatis:
   configuration:
     map-underscore-to-camel-case: true  # user_id -> userId 自动映射
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl  # 控制台打印 SQL
+    # log-impl: org.apache.ibatis.logging.stdout.StdOutImpl  # 生产环境关闭 SQL 日志
 
 server:
   port: 8080
