@@ -4,8 +4,10 @@
 //   node seed-test-data.mjs user-xxxx    → 为指定 userId 插入数据
 import { execSync } from 'child_process'
 
-const MYSQL_BIN = process.env.MYSQL_PATH || 'C:\\Program Files\\MySQL\\MySQL Server 9.7\\bin\\mysql.exe'
+const IS_WIN = process.platform === 'win32'
+const MYSQL_BIN = process.env.MYSQL_PATH || (IS_WIN ? 'C:\\Program Files\\MySQL\\MySQL Server 9.7\\bin\\mysql.exe' : 'mysql')
 const MYSQL_CMD = `"${MYSQL_BIN}" --default-character-set=utf8mb4 -u root -p123456 tiny_light`
+const DEV_NULL = IS_WIN ? 'nul' : '/dev/null'
 
 // 确定目标用户列表
 function resolveUserIds() {
@@ -17,7 +19,7 @@ function resolveUserIds() {
   // 查询数据库中已有的所有用户
   try {
     const out = execSync(
-      `${MYSQL_CMD} -N -e "SELECT DISTINCT user_id FROM tiny_light;" 2>nul`
+      `${MYSQL_CMD} -N -e "SELECT DISTINCT user_id FROM tiny_light;" 2>${DEV_NULL}`
     ).toString().trim()
     if (out) {
       const ids = out.split('\n').map(s => s.trim()).filter(Boolean)
@@ -118,6 +120,6 @@ execSync(MYSQL_CMD, { input: sql, stdio: ['pipe', 'inherit', 'inherit'] })
 console.log('插入完成')
 
 // 验证
-const result = execSync(`${MYSQL_CMD} -e "SELECT user_id, COUNT(*) as cnt, MIN(light_date) as earliest, MAX(light_date) as latest FROM tiny_light GROUP BY user_id;" 2>nul`).toString()
+const result = execSync(`${MYSQL_CMD} -e "SELECT user_id, COUNT(*) as cnt, MIN(light_date) as earliest, MAX(light_date) as latest FROM tiny_light GROUP BY user_id;" 2>${DEV_NULL}`).toString()
 console.log('\n当前各用户数据：')
 console.log(result)
