@@ -45,3 +45,6 @@ node_modules/
 
 ### 构建产物：前端嵌入后端的静态文件 ###
 src/main/resources/static/
+
+### 部署脚本（仅Windows本地使用，不纳入git） ###
+deploy/
