@@ -101,11 +101,15 @@ const stars = computed(() => {
 
 const litCount = computed(() => props.lights.length)
 
-/* tooltip */
-function onStarHover(s, e) {
-  if (!s.isLit) return
+/* tooltip + 点击：事件委托到 starsGroup（原 365×4=1460 个监听器 → 3 个）
+   currentHoverEl 跟踪当前 hover 的 g 元素，只在切换 star 时才 find stars 数组，
+   mousemove 内部不 find，避免高频查询开销 */
+let currentHoverEl = null
+let currentHoverStar = null
+function showTooltip(s, e) {
+  if (!s.isLit || !s.light) return
   const tip = tooltipRef.value
-  if (!tip || !s.light) return
+  if (!tip) return
   const [, m, d] = s.light.lightDate.split('-')
   const dateEl = tip.querySelector('.tip-date')
   const textEl = tip.querySelector('.tip-text')
@@ -118,24 +122,51 @@ function onStarHover(s, e) {
   }
   if (textEl) textEl.textContent = s.light.content || ''
   tip.classList.add('show')
-  onStarMove(e)
+  moveTooltip(e)
 }
-function onStarMove(e) {
+function moveTooltip(e) {
   const tip = tooltipRef.value
   if (!tip || !tip.classList.contains('show')) return
   tip.style.left = Math.min(e.clientX + 16, window.innerWidth - 260) + 'px'
   tip.style.top = (e.clientY - 10) + 'px'
 }
-function onStarLeave() {
+function hideTooltip() {
   const tip = tooltipRef.value
   if (tip) tip.classList.remove('show')
 }
 
 /* 点击：开详情 + 涟漪 */
-function onStarClick(s) {
-  if (!s.isLit || !s.light) return
+function onGroupClick(e) {
+  const g = e.target.closest('.river-star')
+  if (!g) return
+  const day = parseInt(g.dataset.day)
+  const s = stars.value.find(it => it.day === day)
+  if (!s || !s.isLit || !s.light) return
   emit('select', s.light)
   createRipple(s.x, s.y)
+}
+function onGroupMove(e) {
+  const g = e.target.closest('.river-star')
+  if (g !== currentHoverEl) {
+    // 切换 star：隐藏旧 tooltip，显示新的
+    hideTooltip()
+    currentHoverEl = g
+    if (g) {
+      const day = parseInt(g.dataset.day)
+      currentHoverStar = stars.value.find(it => it.day === day) || null
+      if (currentHoverStar) showTooltip(currentHoverStar, e)
+    } else {
+      currentHoverStar = null
+    }
+  } else if (currentHoverStar) {
+    // 同一 star 内移动：只更新 tooltip 位置
+    moveTooltip(e)
+  }
+}
+function onGroupLeave() {
+  hideTooltip()
+  currentHoverEl = null
+  currentHoverStar = null
 }
 function createRipple(x, y) {
   const g = starsGroupRef.value
@@ -193,17 +224,17 @@ function createRipple(x, y) {
     </defs>
     <path class="river-path-glow" :d="pathD"/>
     <path class="river-path-core" :d="pathD" ref="pathCoreRef"/>
-    <g ref="starsGroupRef">
+    <g ref="starsGroupRef"
+      @click="onGroupClick"
+      @mousemove="onGroupMove"
+      @mouseleave="onGroupLeave"
+    >
       <g
         v-for="s in stars"
         :key="s.day"
         :class="['river-star', s.isLit ? 'lit' : 'dim']"
         :data-day="s.day"
         :style="{ '--pd': s.pd + 's' }"
-        @click="onStarClick(s)"
-        @mouseenter="onStarHover(s, $event)"
-        @mousemove="onStarMove"
-        @mouseleave="onStarLeave"
       >
         <circle v-if="s.isLit" class="star-glow" :cx="s.x" :cy="s.y" :r="s.r * 3" fill="rgba(237,206,110,0.05)"/>
         <g :class="{ 'pulse-wrap': s.isLit }">
@@ -220,14 +251,8 @@ function createRipple(x, y) {
       <text v-for="(m, i) in monthLabels" :key="i" :x="m.x" :y="m.y + 55" text-anchor="middle">{{ m.name }}</text>
     </g>
     <g v-if="todayPos">
-      <circle :cx="todayPos.x" :cy="todayPos.y" r="12" fill="none" stroke="rgba(237,206,110,0.3)" stroke-width="1">
-        <animate attributeName="r" values="8;20;8" dur="3s" repeatCount="indefinite"/>
-        <animate attributeName="opacity" values="0.5;0;0.5" dur="3s" repeatCount="indefinite"/>
-      </circle>
-      <circle :cx="todayPos.x" :cy="todayPos.y" r="18" fill="none" stroke="rgba(248,227,154,0.12)" stroke-width="0.7">
-        <animate attributeName="r" values="12;26;12" dur="3s" begin="0.5s" repeatCount="indefinite"/>
-        <animate attributeName="opacity" values="0.3;0;0.3" dur="3s" begin="0.5s" repeatCount="indefinite"/>
-      </circle>
+      <circle class="today-pulse-1" :cx="todayPos.x" :cy="todayPos.y" fill="none" stroke="rgba(237,206,110,0.3)" stroke-width="1"/>
+      <circle class="today-pulse-2" :cx="todayPos.x" :cy="todayPos.y" fill="none" stroke="rgba(248,227,154,0.12)" stroke-width="0.7"/>
       <text :x="todayPos.x" :y="todayPos.y - 22" text-anchor="middle" fill="#edce6e" font-size="9" font-family="'Geist Mono',monospace" opacity="0.7" letter-spacing="2">TODAY</text>
     </g>
   </svg>
@@ -275,15 +300,16 @@ function createRipple(x, y) {
   margin-top: 6px;
   margin-left: 32px;
 }
-.river-svg { width: 100%; height: auto; display: block; overflow: visible; }
+.river-svg { width: 100%; height: auto; display: block; overflow: visible; contain: layout style paint; }
 .river-star { cursor: pointer; transition: transform 0.35s var(--ease-spring); transform-origin: center; transform-box: fill-box; }
 .river-star .star-body { transition: r 0.35s var(--ease-spring); }
 .river-star.lit .star-body { fill: var(--gold-2); filter: url(#goldGlow); }
 /* 预置强发光层：hover 时淡入（opacity 可合成），替代直接切换滤镜（每次 hover 整组重算模糊） */
 .star-body-strong { fill: var(--gold-2); filter: url(#goldGlowStrong); opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
 .river-star.lit:hover .star-body-strong { opacity: 1; }
-/* 脉动动画挂到无滤镜的包裹组：滤镜结果缓存为纹理，每帧只调组透明度，109 颗亮星不再重算模糊 */
-.pulse-wrap { animation: starPulse 3s ease-in-out infinite; animation-delay: var(--pd, 0s); will-change: opacity; }
+/* 脉动动画挂到无滤镜的包裹组：滤镜结果缓存为纹理，每帧只调组透明度，109 颗亮星不再重算模糊
+   不给 will-change：109 颗星各建合成层会超 GPU 预算，反而更卡 */
+.pulse-wrap { animation: starPulse 3s ease-in-out infinite; animation-delay: var(--pd, 0s); }
 .river-star.dim .star-body { fill: #b0a898; opacity: 0.3; }
 .river-star.dim .star-glow { opacity: 0; }
 .river-star.dim { cursor: default; }
@@ -295,6 +321,19 @@ function createRipple(x, y) {
 .river-path-glow { fill: none; stroke: url(#riverGrad); stroke-width: 90; stroke-linecap: round; opacity: 0.1; filter: url(#riverBlur); }
 .river-path-core { fill: none; stroke: url(#riverGradCore); stroke-width: 1.5; stroke-linecap: round; opacity: 0.2; stroke-dasharray: 3 8; animation: flowDash 25s linear infinite; }
 @keyframes flowDash { to { stroke-dashoffset: -220; } }
+
+/* 今日星脉冲环：原 SMIL <animate> 改 CSS animation（移动端 SMIL 性能不如 CSS）
+   复刻原 values: r 8;20;8 + opacity 0.5;0;0.5，dur 3s */
+.today-pulse-1 { animation: todayPulse1 3s ease-in-out infinite; }
+@keyframes todayPulse1 {
+  0%, 100% { r: 8; opacity: 0.5; }
+  50% { r: 20; opacity: 0; }
+}
+.today-pulse-2 { animation: todayPulse2 3s ease-in-out 0.5s infinite; }
+@keyframes todayPulse2 {
+  0%, 100% { r: 12; opacity: 0.3; }
+  50% { r: 26; opacity: 0; }
+}
 .river-footer {
   margin-top: 12px;
   font-family: var(--font-sans);

@@ -27,11 +27,9 @@ const heroDate = `${year} · ${String(now.getMonth() + 1).padStart(2, '0')} · $
 const inputDateLabel = `${monthEng[now.getMonth()]} ${String(now.getDate()).padStart(2, '0')} · ${dayEng[now.getDay()]}`
 
 /* ===== 背景层 DOM 引用 ===== */
-const starsBgRef = ref(null)
 const shootingStarsRef = ref(null)
 const particleCanvasRef = ref(null)
 const cursorGlowRef = ref(null)
-const burstContainerRef = ref(null)
 const inputSecRef = ref(null)
 const heroEmblemRef = ref(null)
 const moonGlowRef = ref(null)
@@ -112,27 +110,171 @@ function scrollToInput() {
   inputSecRef.value?.scrollIntoView({ behavior: 'smooth' })
 }
 
-/* ===== 背景动效 1：150 颗闪烁星 + 8 颗十字闪光 ===== */
-function createStars() {
-  const c = starsBgRef.value
-  if (!c) return
-  const f = document.createDocumentFragment()
+/* ===== 背景动效 1+3：单 canvas 单 rAF（闪烁星 + 十字闪光 + 金尘 + 爆发粒子） =====
+   合并原因：原 stars-canvas 在 2000px 高容器内，retina 屏 canvas 实际 4000px 高，
+   每帧 clearRect+redraw 数百万像素（视口仅 ~800px 可见），桌面端也卡。
+   现在全部画到 particleCanvas（position:fixed 视口大小），一个 rAF 循环按层绘制。
+   视觉：星从"滚动滚走"改为"固定背景"（视差设计里远景星固定更自然）。 */
+let bgRaf = null
+let bgResizeHandler = null
+let bgVisibilityHandler = null
+let bgPaused = false
+let bgLoopFn = null  // 暴露 loop 供滚动暂停后重启
+let scrollStopTimer = null
+const burstParticles = []
+function seededRand(seed) {
+  const x = Math.sin(seed * 12.9898) * 43758.5453
+  return x - Math.floor(x)
+}
+function initBackgroundCanvas() {
+  if (prm) return
+  const cv = particleCanvasRef.value
+  if (!cv) return
+  const ctx = cv.getContext('2d', { alpha: true })
+  const dpr = Math.min(window.devicePixelRatio || 1, 2)
+  let w, h
+  // 预生成闪烁星 + 十字闪光（确定性，刷新一致）
+  const stars = []
   for (let i = 0; i < 150; i++) {
-    const s = document.createElement('div')
-    s.className = 'star-twinkle'
-    const sz = Math.random() * 2.2 + 0.4
-    s.style.cssText = `left:${Math.random() * 100}%;top:${Math.random() * 100}%;width:${sz}px;height:${sz}px;--dur:${2 + Math.random() * 4}s;--delay:${Math.random() * 5}s;--min:${0.1 + Math.random() * 0.15};--max:${0.3 + Math.random() * 0.5};`
-    if (Math.random() < 0.1) s.style.background = 'var(--gold-4)'
-    if (Math.random() < 0.03) s.style.boxShadow = `0 0 ${sz * 3}px rgba(248,227,154,0.2)`
-    f.appendChild(s)
+    const r1 = seededRand(i + 1), r2 = seededRand(i + 100), r3 = seededRand(i + 200)
+    const r4 = seededRand(i + 300), r5 = seededRand(i + 400), r6 = seededRand(i + 500)
+    const r7 = seededRand(i + 600), r8 = seededRand(i + 700), r9 = seededRand(i + 800)
+    stars.push({
+      x: r1, y: r2, sz: r3 * 2.2 + 0.4,
+      dur: 2 + r4 * 4, delay: r5 * 5,
+      minOp: 0.1 + r6 * 0.15, maxOp: 0.3 + r7 * 0.5,
+      gold: r8 < 0.1, glow: r9 < 0.03,
+    })
   }
+  const sparkles = []
   for (let i = 0; i < 8; i++) {
-    const sp = document.createElement('div')
-    sp.className = 'sparkle-cross'
-    sp.style.cssText = `left:${Math.random() * 100}%;top:${Math.random() * 55}%;--sd:${Math.random() * 8}s;animation-duration:${5 + Math.random() * 4}s;`
-    f.appendChild(sp)
+    sparkles.push({
+      x: seededRand(i + 900), y: seededRand(i + 1000) * 0.55,
+      dur: 5 + seededRand(i + 1100) * 4, delay: seededRand(i + 1200) * 8,
+    })
   }
-  c.appendChild(f)
+  // 金尘粒子
+  const ps = []
+  function makeParticle(init) {
+    return {
+      x: Math.random() * w,
+      y: init ? Math.random() * h : h + 10,
+      r: Math.random() * 1.8 + 0.4,
+      vy: -(Math.random() * 0.2 + 0.06),
+      vx: (Math.random() - 0.5) * 0.12,
+      op: Math.random() * 0.3 + 0.05,
+      gold: Math.random() > 0.4,
+      p: Math.random() * Math.PI * 2,
+    }
+  }
+  function resize() {
+    w = window.innerWidth
+    h = window.innerHeight
+    cv.width = w * dpr
+    cv.height = h * dpr
+    cv.style.width = w + 'px'
+    cv.style.height = h + 'px'
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ps.length = 0
+    for (let i = 0; i < 60; i++) ps.push(makeParticle(true))
+  }
+  resize()
+  bgResizeHandler = resize
+  window.addEventListener('resize', resize)
+  let start = performance.now()
+  // 标签不可见时暂停 rAF（切标签页/最小化时停止烧 CPU/GPU）
+  bgVisibilityHandler = () => {
+    bgPaused = document.hidden
+    if (!bgPaused && bgRaf === null) {
+      start = performance.now()  // 重置时间基准避免跳变
+      bgRaf = requestAnimationFrame(loop)
+    }
+  }
+  document.addEventListener('visibilitychange', bgVisibilityHandler)
+  function loop(t) {
+    if (bgPaused) { bgRaf = null; return }
+    const time = (t - start) / 1000
+    ctx.clearRect(0, 0, w, h)
+    // 1. 金尘粒子（最底层）
+    for (let i = 0; i < ps.length; i++) {
+      const p = ps[i]
+      p.x += p.vx + Math.sin(p.p) * 0.08
+      p.y += p.vy
+      p.p += 0.015
+      const o = p.op * (0.6 + 0.4 * Math.sin(p.p))
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
+      ctx.fillStyle = p.gold ? `rgba(248,227,154,${o})` : `rgba(245,242,235,${o * 0.3})`
+      ctx.fill()
+      if (p.gold && p.r > 1.2) {
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, p.r * 2.5, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(248,227,154,${o * 0.08})`
+        ctx.fill()
+      }
+      if (p.y < -15 || p.x < -15 || p.x > w + 15) ps[i] = makeParticle(false)
+    }
+    // 2. 闪烁星
+    for (let i = 0; i < stars.length; i++) {
+      const s = stars[i]
+      const phase = ((time + s.delay) % s.dur) / s.dur
+      const k = (1 - Math.cos(phase * Math.PI * 2)) / 2
+      const op = s.minOp + (s.maxOp - s.minOp) * k
+      const r = (s.sz * (1 + 0.3 * k)) / 2
+      const x = s.x * w, y = s.y * h
+      ctx.beginPath()
+      ctx.arc(x, y, r, 0, Math.PI * 2)
+      ctx.fillStyle = s.gold ? `rgba(248,227,154,${op})` : `rgba(240,237,230,${op})`
+      ctx.fill()
+      if (s.glow) {
+        ctx.beginPath()
+        ctx.arc(x, y, s.sz * 3, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(248,227,154,0.2)`
+        ctx.fill()
+      }
+    }
+    // 3. 十字闪光
+    for (let i = 0; i < sparkles.length; i++) {
+      const sp = sparkles[i]
+      const phase = ((time + sp.delay) % sp.dur) / sp.dur
+      if (phase < 0.4 || phase > 0.6) continue
+      const local = (phase - 0.4) / 0.2
+      const op = Math.sin(local * Math.PI) * 0.6
+      const scale = 0.3 + 0.7 * Math.sin(local * Math.PI)
+      ctx.save()
+      ctx.translate(sp.x * w, sp.y * h)
+      ctx.rotate(local * 90 * Math.PI / 180)
+      ctx.globalAlpha = op
+      ctx.fillStyle = '#f8e39a'
+      ctx.fillRect(-0.5, -0.5, 1, 1)
+      ctx.fillRect(-9 * scale, -0.5, 18 * scale, 1)
+      ctx.fillRect(-0.5, -9 * scale, 1, 18 * scale)
+      ctx.restore()
+    }
+    // 4. 爆发粒子（最顶层）
+    for (let i = burstParticles.length - 1; i >= 0; i--) {
+      const p = burstParticles[i]
+      p.x += p.vx
+      p.y += p.vy
+      p.vy += 0.04
+      p.life -= 0.02
+      if (p.life <= 0) { burstParticles.splice(i, 1); continue }
+      const op = p.life * (p.isGold ? 0.7 : 0.3)
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, 2 * p.life, 0, Math.PI * 2)
+      ctx.fillStyle = p.isGold ? `rgba(248,227,154,${op})` : `rgba(245,242,235,${op})`
+      ctx.fill()
+      if (p.isGold) {
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, 5 * p.life, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(237,206,110,${op * 0.5})`
+        ctx.fill()
+      }
+    }
+    bgRaf = requestAnimationFrame(loop)
+  }
+  bgLoopFn = loop  // 暴露给滚动暂停后重启
+  bgRaf = requestAnimationFrame(loop)
 }
 
 /* ===== 背景动效 2：流星 ===== */
@@ -162,57 +304,6 @@ function schedShoot() {
     if (Math.random() < 0.25) setTimeout(shoot, 500 + Math.random() * 500)
     schedShoot()
   }, 2500 + Math.random() * 3000)
-}
-
-/* ===== 背景动效 3：Canvas 金色微尘 60 颗 ===== */
-let particleRaf = null
-let particleResizeHandler = null
-function initParticles() {
-  if (prm) return
-  const cv = particleCanvasRef.value
-  if (!cv) return
-  const ctx = cv.getContext('2d')
-  let w, h, ps = [], N = 60
-  function resize() { w = cv.width = window.innerWidth; h = cv.height = window.innerHeight }
-  resize()
-  particleResizeHandler = resize
-  window.addEventListener('resize', resize)
-  function makeParticle(init) {
-    return {
-      x: Math.random() * w,
-      y: init ? Math.random() * h : h + 10,
-      r: Math.random() * 1.8 + 0.4,
-      vy: -(Math.random() * 0.2 + 0.06),
-      vx: (Math.random() - 0.5) * 0.12,
-      op: Math.random() * 0.3 + 0.05,
-      gold: Math.random() > 0.4,
-      p: Math.random() * Math.PI * 2,
-    }
-  }
-  for (let i = 0; i < N; i++) ps.push(makeParticle(true))
-  function loop() {
-    ctx.clearRect(0, 0, w, h)
-    for (let i = 0; i < ps.length; i++) {
-      const p = ps[i]
-      p.x += p.vx + Math.sin(p.p) * 0.08
-      p.y += p.vy
-      p.p += 0.015
-      const o = p.op * (0.6 + 0.4 * Math.sin(p.p))
-      ctx.beginPath()
-      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
-      ctx.fillStyle = p.gold ? `rgba(248,227,154,${o})` : `rgba(245,242,235,${o * 0.3})`
-      ctx.fill()
-      if (p.gold && p.r > 1.2) {
-        ctx.beginPath()
-        ctx.arc(p.x, p.y, p.r * 2.5, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(248,227,154,${o * 0.08})`
-        ctx.fill()
-      }
-      if (p.y < -15 || p.x < -15 || p.x > w + 15) ps[i] = makeParticle(false)
-    }
-    particleRaf = requestAnimationFrame(loop)
-  }
-  loop()
 }
 
 /* ===== 背景动效 4：光标金色光晕（lerp 跟随，静止时自动休眠） ===== */
@@ -248,29 +339,21 @@ function initCursor() {
   loop()
 }
 
-/* ===== 背景动效 5：点击爆发粒子 ===== */
+/* ===== 背景动效 5：点击爆发粒子（push 到 burstParticles，由 bgRaf 消费） ===== */
 let burstClickHandler = null
 function burstAt(x, y, count = 10, goldRatio = 0.7) {
   if (prm) return
-  const container = burstContainerRef.value
-  if (!container) return
   for (let i = 0; i < count; i++) {
-    const p = document.createElement('div')
-    p.className = 'burst-particle'
     const ang = (Math.PI * 2 / count) * i + Math.random() * 0.4
     const spd = 1.5 + Math.random() * 2.5
     const isGold = Math.random() < goldRatio
-    p.style.cssText = `left:${x}px;top:${y}px;background:${isGold ? '#f8e39a' : '#f5f2eb'};box-shadow:0 0 6px ${isGold ? 'rgba(237,206,110,0.4)' : 'transparent'};opacity:${isGold ? 0.8 : 0.4};`
-    container.appendChild(p)
-    let dx = 0, dy = 0, vx = Math.cos(ang) * spd, vy = Math.sin(ang) * spd - 1, life = 1
-    function anim() {
-      dx += vx; dy += vy; vy += 0.04; life -= 0.02
-      if (life <= 0) { p.remove(); return }
-      p.style.transform = `translate3d(${dx}px,${dy}px,0) scale(${life})`
-      p.style.opacity = life * (isGold ? 0.7 : 0.3)
-      requestAnimationFrame(anim)
-    }
-    requestAnimationFrame(anim)
+    burstParticles.push({
+      x, y,
+      vx: Math.cos(ang) * spd,
+      vy: Math.sin(ang) * spd - 1,
+      life: 1,
+      isGold,
+    })
   }
 }
 function initBurst() {
@@ -282,7 +365,10 @@ function initBurst() {
   document.addEventListener('click', burstClickHandler)
 }
 
-/* ===== 视差滚动（rAF 节流） ===== */
+/* ===== 视差滚动（rAF 节流）+ 滚动时冻结背景动画 =====
+   滚动卡顿根因：主线程同时处理视差 update + canvas rAF(每帧 redraw 218 对象)
+   + aurora/moon-glow 的 blur 合成。滚动时冻结 canvas + 暂停 CSS 动画，
+   主线程专注滚动，滚停 150ms 后恢复。视觉上滚动时背景静止反而更自然。 */
 let parallaxScrollHandler = null
 let parallaxTicking = false
 function initParallax() {
@@ -301,6 +387,17 @@ function initParallax() {
   }
   parallaxScrollHandler = () => {
     if (!parallaxTicking) { requestAnimationFrame(update); parallaxTicking = true }
+    // 滚动时冻结背景：canvas 停止重绘 + CSS 动画暂停
+    if (!bgPaused) {
+      bgPaused = true
+      document.body.classList.add('scrolling')
+    }
+    clearTimeout(scrollStopTimer)
+    scrollStopTimer = setTimeout(() => {
+      bgPaused = false
+      document.body.classList.remove('scrolling')
+      if (bgRaf === null && bgLoopFn) bgRaf = requestAnimationFrame(bgLoopFn)
+    }, 150)
   }
   window.addEventListener('scroll', parallaxScrollHandler, { passive: true })
 }
@@ -328,8 +425,7 @@ function initReveal() {
 
 /* ===== 生命周期 ===== */
 onMounted(async () => {
-  createStars()
-  initParticles()
+  initBackgroundCanvas()
   initCursor()
   initBurst()
   initParallax()
@@ -351,9 +447,11 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (shootTimer) clearTimeout(shootTimer)
-  if (particleRaf) cancelAnimationFrame(particleRaf)
+  if (scrollStopTimer) clearTimeout(scrollStopTimer)
+  if (bgRaf) cancelAnimationFrame(bgRaf)
   if (cursorRaf) cancelAnimationFrame(cursorRaf)
-  if (particleResizeHandler) window.removeEventListener('resize', particleResizeHandler)
+  if (bgResizeHandler) window.removeEventListener('resize', bgResizeHandler)
+  if (bgVisibilityHandler) document.removeEventListener('visibilitychange', bgVisibilityHandler)
   if (cursorMoveHandler) document.removeEventListener('mousemove', cursorMoveHandler)
   if (cursorLeaveHandler) document.removeEventListener('mouseleave', cursorLeaveHandler)
   if (burstClickHandler) document.removeEventListener('click', burstClickHandler)
@@ -365,7 +463,6 @@ onUnmounted(() => {
 <template>
   <!-- 背景层 -->
   <div class="cursor-glow" ref="cursorGlowRef"></div>
-  <div class="click-burst-container" ref="burstContainerRef"></div>
   <div class="bg-gradient"></div>
   <div class="bg-aurora">
     <div class="aurora-band aurora-1"></div>
@@ -373,7 +470,6 @@ onUnmounted(() => {
     <div class="aurora-band aurora-3"></div>
   </div>
   <canvas id="particleCanvas" ref="particleCanvasRef"></canvas>
-  <div class="stars-bg" ref="starsBgRef"></div>
   <div class="shooting-stars" ref="shootingStarsRef"></div>
   <div class="noise"></div>
 

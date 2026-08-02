@@ -37,8 +37,8 @@ body{font-family:var(--font-sans);font-weight:300;color:var(--text-light);backgr
 
 button{font-family:inherit}
 
-/* GPU 加速：动画元素统一声明（star-twinkle 数量达 150 颗，不给 will-change——小点普通重绘更便宜，避免 150 个合成层吃 GPU 带宽） */
-.hero-emblem,.moon-glow,.scroll-dot,.lit-glow,.cursor-glow,.river-path-core,.aurora-band,.shooting-star,.sparkle-cross{will-change:transform,opacity;contain:layout style}
+/* GPU 加速：动画元素统一声明（闪烁星已改 canvas，不再需要 DOM 合成层管理） */
+.hero-emblem,.moon-glow,.scroll-dot,.lit-glow,.cursor-glow,.river-path-core,.aurora-band,.shooting-star{will-change:transform,opacity;contain:layout style}
 
 /* 噪点纹理 */
 .noise{position:fixed;inset:0;z-index:9999;pointer-events:none;opacity:0.025;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");background-size:200px}
@@ -58,20 +58,8 @@ button{font-family:inherit}
 
 #particleCanvas{position:fixed;inset:0;z-index:1;pointer-events:none}
 
-/* 闪烁星星 */
-.stars-bg{position:absolute;top:0;left:0;right:0;height:2000px;z-index:1;pointer-events:none;overflow:hidden}
-.star-twinkle{position:absolute;border-radius:50%;background:var(--platinum-2);animation:twinkle var(--dur,3s) ease-in-out infinite;animation-delay:var(--delay,0s)}
-@keyframes twinkle{0%,100%{opacity:var(--min,0.15);transform:scale3d(1,1,1)}50%{opacity:var(--max,0.8);transform:scale3d(1.3,1.3,1)}}
-
-/* 十字闪光星 */
-.sparkle-cross{position:absolute;width:1px;height:1px;background:var(--gold-4);animation:sparkleAnim 5s ease-in-out infinite;animation-delay:var(--sd,0s)}
-.sparkle-cross::before,.sparkle-cross::after{content:'';position:absolute;background:inherit}
-.sparkle-cross::before{width:18px;height:1px;top:0;left:-9px}
-.sparkle-cross::after{width:1px;height:18px;left:0;top:-9px}
-@keyframes sparkleAnim{0%,100%{opacity:0;transform:scale3d(0.3,0.3,1) rotate(0deg)}40%{opacity:0}50%{opacity:0.6;transform:scale3d(1,1,1) rotate(45deg)}60%{opacity:0}100%{opacity:0;transform:scale3d(0.3,0.3,1) rotate(90deg)}}
-
-/* 流星 */
-.shooting-stars{position:absolute;top:0;left:0;right:0;height:2000px;z-index:2;pointer-events:none;overflow:hidden}
+/* 流星：固定在视口（流星只在屏幕上方出现，无需 2000px 高容器） */
+.shooting-stars{position:fixed;top:0;left:0;right:0;height:100vh;z-index:2;pointer-events:none;overflow:hidden}
 .shooting-star{position:absolute;width:3px;height:3px;background:var(--gold-4);border-radius:50%;box-shadow:0 0 8px 3px var(--gold-glow-mid),0 0 20px 6px var(--gold-glow-soft);animation:shoot var(--sdur,1s) cubic-bezier(0.4,0,1,1) forwards;opacity:0}
 .shooting-star::before{content:'';position:absolute;top:50%;left:0;width:var(--tail,120px);height:2px;background:linear-gradient(to right,var(--gold-3),rgba(237,206,110,0.4),transparent);transform:translateY(-50%);border-radius:2px}
 .shooting-star::after{content:'';position:absolute;top:50%;left:0;width:calc(var(--tail,120px)*0.5);height:4px;background:linear-gradient(to right,rgba(248,227,154,0.25),transparent);transform:translateY(-50%);filter:blur(3px)}
@@ -80,10 +68,6 @@ button{font-family:inherit}
 /* 光标金色光晕 */
 .cursor-glow{position:fixed;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,rgba(237,206,110,0.07) 0%,rgba(237,206,110,0.02) 40%,transparent 70%);pointer-events:none;z-index:9998;transform:translate3d(-50%,-50%,0);opacity:0;transition:opacity 0.5s}
 .cursor-glow.on{opacity:1}
-
-/* 点击爆发粒子容器 */
-.click-burst-container{position:fixed;inset:0;pointer-events:none;z-index:9997;overflow:hidden}
-.burst-particle{position:absolute;width:4px;height:4px;border-radius:50%;pointer-events:none}
 
 /* tooltip */
 .tooltip{position:fixed;background:var(--glass-dark);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid var(--glass-border);border-radius:12px;padding:10px 14px;font-size:0.78rem;font-weight:300;color:var(--platinum-2);pointer-events:none;z-index:100;opacity:0;transform:translate3d(0,5px,0);transition:opacity 0.2s,transform 0.2s;box-shadow:var(--glass-inner-shadow),var(--glass-outer-shadow);max-width:240px}
@@ -94,7 +78,42 @@ button{font-family:inherit}
 /* 入场动画 */
 @keyframes fadeUp{from{opacity:0;transform:translate3d(0,25px,0)}to{opacity:1;transform:translate3d(0,0,0)}}
 
-/* 尊重用户偏好：减少动效 */
+/* 响应式 */
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:0.01ms!important;animation-iteration-count:1!important;transition-duration:0.01ms!important}
+}
+
+/* content-visibility: 不在视口的 section 跳过渲染（大幅提升滚动性能，无视觉损失）
+   contain-intrinsic-size 给出预估高度，避免滚动条跳动 */
+.section-stats,.section-river,.section-memories,.footer{
+  content-visibility:auto;
+  contain-intrinsic-size:auto 500px;
+}
+
+/* 滚动时移除耗性能的合成层：aurora blur(70px) + moon-glow blur(30px) 的合成本身
+   （不只是 animation）是 GPU 开销大头。visibility:hidden 让浏览器跳过合成，
+   滚停 150ms 后恢复。滚动时这些背景元素在视口边缘/被内容遮挡，隐藏无视觉差。 */
+body.scrolling .bg-aurora,
+body.scrolling .moon-glow{
+  visibility:hidden;
+}
+body.scrolling .hero-emblem,
+body.scrolling .hero-title .gold,
+body.scrolling .scroll-hint-text,
+body.scrolling .scroll-dot{
+  animation-play-state:paused;
+}
+
+/* ============ 移动端性能降级（hover:none + pointer:coarse = 真触屏设备） ============
+   玻璃态：backdrop-filter blur(18px) 在中低端安卓/iOS 早期版本是性能黑洞（默认 CPU 渲染），
+   移动端改用加深底色 + 移除模糊，保留玻璃质感和金色描边，损失"折射感"换取流畅度。
+   noise：feTurbulence 全屏滤镜移动端昂贵且 opacity 0.025 几乎不可见，直接关掉。
+   aurora：blur(70px) 太重，移动端降到 35px，飘带仍在，柔和度略减。 */
+@media(hover:none) and (pointer:coarse){
+  :root{
+    --glass-blur:none;
+    --glass-dark:rgba(15,15,40,0.72);  /* 加深补偿失去的折射 */
+  }
+  .noise{display:none}
+  .aurora-band{filter:blur(35px)}
 }
