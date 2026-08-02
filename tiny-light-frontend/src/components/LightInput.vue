@@ -12,8 +12,10 @@ const prm = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 const touch = window.matchMedia('(hover: none)').matches
 
 /* 7 种心情 + 完整内联 SVG 字符串（stroke 风格，stroke-width 1.5）
-   用 v-html 打在 span 上，让 HTML 解析器走内联 SVG 路径，规避 SVG innerHTML 命名空间兼容问题 */
-const SVG_WRAP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'
+   用 v-html 打在 span 上，让 HTML 解析器走内联 SVG 路径，规避 SVG innerHTML 命名空间兼容问题
+   注意：v-html 内容不受 scoped 样式影响（无 data-v 属性），尺寸必须内联在 svg 标签上，
+   否则 Safari 下无尺寸 svg 会在 shrink-to-fit 容器里塌缩为 0×0（完全不可见） */
+const SVG_WRAP = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'
 const moods = [
   { key: '开心', inner: '<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>' },
   { key: '平静', inner: '<path d="M11 20A7 7 0 019.8 6.9C15.5 4.9 17 3.5 19 2c1 2 2 4.5 2 8 0 5.5-4.78 10-10 10z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/>' },
@@ -296,7 +298,8 @@ const showForm = (t) => !t || isEditing.value
 }
 .mood-tag:nth-child(odd) { transform: translateY(2px); }
 .mood-tag:nth-child(3n) { transform: translateY(-1px); }
-.mood-tag svg { width: 14px; height: 14px; opacity: 0.7; transition: opacity 0.3s; }
+/* v-html 注入的 svg 无 data-v 属性，必须用 :deep() 穿透 scoped 边界才能命中 */
+.mood-tag :deep(svg) { width: 14px; height: 14px; opacity: 0.7; transition: opacity 0.3s; }
 .mood-tag:hover {
   background: rgba(237, 206, 110, 0.1);
   border-color: rgba(237, 206, 110, 0.3);
@@ -304,7 +307,7 @@ const showForm = (t) => !t || isEditing.value
   transform: translateY(-3px) scale(1.06);
   box-shadow: 0 4px 16px rgba(237, 206, 110, 0.12);
 }
-.mood-tag:hover svg { opacity: 1; }
+.mood-tag:hover :deep(svg) { opacity: 1; }
 .mood-tag.selected {
   background: linear-gradient(135deg, var(--gold-1), var(--gold-2));
   border-color: var(--gold-3);
@@ -313,7 +316,7 @@ const showForm = (t) => !t || isEditing.value
   box-shadow: 0 4px 20px rgba(237, 206, 110, 0.3);
   transform: translateY(-2px) scale(1.04);
 }
-.mood-tag.selected svg { opacity: 1; }
+.mood-tag.selected :deep(svg) { opacity: 1; }
 .mood-hint {
   font-size: 0.72rem;
   color: var(--gold-3);

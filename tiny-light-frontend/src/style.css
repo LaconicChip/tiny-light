@@ -37,18 +37,18 @@ body{font-family:var(--font-sans);font-weight:300;color:var(--text-light);backgr
 
 button{font-family:inherit}
 
-/* GPU 加速：动画元素统一声明 */
-.hero-emblem,.moon-glow,.scroll-dot,.lit-glow,.river-star.lit .star-body,.cursor-glow,.river-path-core,.aurora-band,.star-twinkle,.shooting-star,.sparkle-cross{will-change:transform,opacity;contain:layout style}
+/* GPU 加速：动画元素统一声明（star-twinkle 数量达 150 颗，不给 will-change——小点普通重绘更便宜，避免 150 个合成层吃 GPU 带宽） */
+.hero-emblem,.moon-glow,.scroll-dot,.lit-glow,.cursor-glow,.river-path-core,.aurora-band,.shooting-star,.sparkle-cross{will-change:transform,opacity;contain:layout style}
 
 /* 噪点纹理 */
-.noise{position:fixed;inset:0;z-index:9999;pointer-events:none;opacity:0.025;mix-blend-mode:overlay;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");background-size:200px}
+.noise{position:fixed;inset:0;z-index:9999;pointer-events:none;opacity:0.025;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");background-size:200px}
 
 /* 背景渐变：深空 -> 紫暮 -> 白金晨曦，高度跟随内容（#app position:relative） */
 .bg-gradient{position:absolute;top:0;left:0;right:0;height:100%;z-index:0;pointer-events:none;background:linear-gradient(180deg,var(--night-1) 0%,var(--night-2) 8%,var(--night-3) 18%,#252548 26%,#38305a 33%,#524868 40%,#706270 46%,#8e8082 50%,#b0a398 55%,#cdc4b2 60%,var(--platinum-3) 68%,var(--platinum-2) 80%,var(--platinum-1) 100%)}
 
 /* 极光飘带 */
 .bg-aurora{position:absolute;top:0;left:0;right:0;height:1800px;z-index:0;pointer-events:none;overflow:hidden}
-.aurora-band{position:absolute;width:160%;height:450px;filter:blur(70px);opacity:0.12;border-radius:50%;mix-blend-mode:screen}
+.aurora-band{position:absolute;width:160%;height:450px;filter:blur(70px);opacity:0.12;border-radius:50%;transform:translateZ(0)}
 .aurora-1{top:8%;left:-40%;background:radial-gradient(ellipse,rgba(120,100,180,0.4),transparent 70%);animation:drift1 28s ease-in-out infinite}
 .aurora-2{top:18%;left:-20%;background:radial-gradient(ellipse,rgba(200,160,100,0.3),transparent 70%);animation:drift2 35s ease-in-out infinite}
 .aurora-3{top:5%;left:-15%;background:radial-gradient(ellipse,rgba(80,120,180,0.25),transparent 70%);animation:drift3 24s ease-in-out infinite}

@@ -213,7 +213,7 @@ function initParticles() {
   loop()
 }
 
-/* ===== 背景动效 4：光标金色光晕（lerp 跟随） ===== */
+/* ===== 背景动效 4：光标金色光晕（lerp 跟随，静止时自动休眠） ===== */
 let cursorRaf = null
 let cursorMoveHandler = null
 let cursorLeaveHandler = null
@@ -222,14 +222,25 @@ function initCursor() {
   const g = cursorGlowRef.value
   if (!g) return
   let mx = window.innerWidth / 2, my = window.innerHeight / 2, cx = mx, cy = my
-  cursorMoveHandler = (e) => { mx = e.clientX; my = e.clientY; g.classList.add('on') }
+  let idle = 0
+  cursorMoveHandler = (e) => {
+    mx = e.clientX; my = e.clientY; g.classList.add('on')
+    if (cursorRaf === null) { idle = 0; loop() } // 休眠中被鼠标唤醒
+  }
   cursorLeaveHandler = () => g.classList.remove('on')
   document.addEventListener('mousemove', cursorMoveHandler)
   document.addEventListener('mouseleave', cursorLeaveHandler)
   function loop() {
-    cx += (mx - cx) * 0.07
-    cy += (my - cy) * 0.07
+    const dx = mx - cx, dy = my - cy
+    cx += dx * 0.07
+    cy += dy * 0.07
     g.style.transform = `translate3d(${cx}px,${cy}px,0) translate(-50%,-50%)`
+    if (Math.abs(dx) < 0.1 && Math.abs(dy) < 0.1) {
+      // 已收敛到目标点：再跑 30 帧（约 0.5s）确认静止后休眠，视觉无差
+      if (++idle > 30) { cursorRaf = null; return }
+    } else {
+      idle = 0
+    }
     cursorRaf = requestAnimationFrame(loop)
   }
   loop()
@@ -300,6 +311,14 @@ function initReveal() {
       if (e.isIntersecting) {
         e.target.classList.add('visible')
         revealObserver.unobserve(e.target)
+        // 入场过渡结束后清掉 transition-delay：它本是入场交错用的，
+        // 不清除的话后续 hover 动画也要等 0.1~0.55s 才启动（可感知的"卡顿延迟"）
+        const el = e.target
+        const clear = () => {
+          el.style.transitionDelay = '0s'
+          el.removeEventListener('transitionend', clear)
+        }
+        el.addEventListener('transitionend', clear)
       }
     })
   }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' })

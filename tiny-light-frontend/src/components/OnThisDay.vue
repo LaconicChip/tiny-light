@@ -102,6 +102,7 @@ const items = computed(() => {
   opacity: 0;
   transform: translate3d(0, 25px, 0) rotate(var(--cr, 0deg));
   transition: all 0.8s var(--ease-out);
+  will-change: transform; /* 仅 3 张卡：常驻合成层，消除 hover 瞬间临时建层的首帧延迟 */
   cursor: pointer;
 }
 .memory-card.visible {

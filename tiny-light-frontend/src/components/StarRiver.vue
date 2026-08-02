@@ -201,7 +201,10 @@ function createRipple(x, y) {
         @mouseleave="onStarLeave"
       >
         <circle v-if="s.isLit" class="star-glow" :cx="s.x" :cy="s.y" :r="s.r * 3" fill="rgba(237,206,110,0.05)"/>
-        <circle class="star-body" :cx="s.x" :cy="s.y" :r="s.r"/>
+        <g :class="{ 'pulse-wrap': s.isLit }">
+          <circle class="star-body" :cx="s.x" :cy="s.y" :r="s.r"/>
+          <circle v-if="s.isLit" class="star-body-strong" :cx="s.x" :cy="s.y" :r="s.r"/>
+        </g>
         <g v-if="s.isLit && s.r > 3" opacity="0.25">
           <line :x1="s.x - s.r * 2" :y1="s.y" :x2="s.x + s.r * 2" :y2="s.y" stroke="rgba(248,227,154,0.2)" stroke-width="0.4"/>
           <line :x1="s.x" :y1="s.y - s.r * 2" :x2="s.x" :y2="s.y + s.r * 2" stroke="rgba(248,227,154,0.2)" stroke-width="0.4"/>
@@ -270,12 +273,16 @@ function createRipple(x, y) {
 .river-svg { width: 100%; height: auto; display: block; overflow: visible; }
 .river-star { cursor: pointer; transition: transform 0.35s var(--ease-spring); transform-origin: center; transform-box: fill-box; }
 .river-star .star-body { transition: r 0.35s var(--ease-spring); }
-.river-star.lit .star-body { fill: var(--gold-2); filter: url(#goldGlow); animation: starPulse 3s ease-in-out infinite; animation-delay: var(--pd, 0s); }
+.river-star.lit .star-body { fill: var(--gold-2); filter: url(#goldGlow); }
+/* 预置强发光层：hover 时淡入（opacity 可合成），替代直接切换滤镜（每次 hover 整组重算模糊） */
+.star-body-strong { fill: var(--gold-2); filter: url(#goldGlowStrong); opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
+.river-star.lit:hover .star-body-strong { opacity: 1; }
+/* 脉动动画挂到无滤镜的包裹组：滤镜结果缓存为纹理，每帧只调组透明度，109 颗亮星不再重算模糊 */
+.pulse-wrap { animation: starPulse 3s ease-in-out infinite; animation-delay: var(--pd, 0s); will-change: opacity; }
 .river-star.dim .star-body { fill: #b0a898; opacity: 0.3; }
 .river-star.dim .star-glow { opacity: 0; }
 .river-star.dim { cursor: default; }
 .river-star:hover { transform: scale(1.8); }
-.river-star.lit:hover { filter: url(#goldGlowStrong); }
 @keyframes starPulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.7; }
