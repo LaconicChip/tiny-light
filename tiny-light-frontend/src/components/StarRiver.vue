@@ -85,8 +85,9 @@ onMounted(() => {
     const wrap = scrollWrapRef.value
     requestAnimationFrame(() => {
       const targetX = todayGeo ? todayGeo.x : 600
-      const scrollTarget = (targetX / 1200) * wrap.scrollWidth - wrap.clientWidth / 2
-      wrap.scrollLeft = Math.max(0, scrollTarget)
+      // 当前月份定位到视口右 70%（居中 50% 往后推 20%），左侧露出今年初到今天的记录
+      const scrollTarget = (targetX / 1200) * wrap.scrollWidth - wrap.clientWidth * 0.7
+      wrap.scrollLeft = Math.max(0, Math.min(scrollTarget, wrap.scrollWidth - wrap.clientWidth))
     })
   }
 })
@@ -296,7 +297,7 @@ function createRipple(x, y) {
     <g v-if="todayPos">
       <circle class="today-pulse-1" :cx="todayPos.x" :cy="todayPos.y" fill="none" stroke="rgba(237,206,110,0.3)" stroke-width="1.2"/>
       <circle class="today-pulse-2" :cx="todayPos.x" :cy="todayPos.y" fill="none" stroke="rgba(248,227,154,0.12)" stroke-width="0.9"/>
-      <text :x="todayPos.x" :y="todayPos.y - 28" text-anchor="middle" fill="#edce6e" font-size="14" font-family="'Geist Mono',monospace" opacity="0.7" letter-spacing="2">TODAY</text>
+      <circle class="today-halo" :cx="todayPos.x" :cy="todayPos.y" r="17" fill="none" stroke="rgba(237,206,110,0.45)" stroke-width="1.2"/>
     </g>
     </svg>
     </div>
@@ -433,6 +434,11 @@ function createRipple(x, y) {
 .river-path-core { fill: none; stroke: url(#riverGradCore); stroke-width: 1.5; stroke-linecap: round; opacity: 0.2; stroke-dasharray: 3 8; }
 
 /* 今日星脉冲环：配合今日星半径 10 加大（原 r 8;20;8 → r 12;30;12） */
+.today-halo { animation: haloBreath 3s ease-in-out infinite; pointer-events: none; }
+@keyframes haloBreath {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.7; }
+}
 .today-pulse-1 { animation: todayPulse1 3s ease-in-out infinite; }
 @keyframes todayPulse1 {
   0%, 100% { r: 12; opacity: 0.5; }
