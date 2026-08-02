@@ -48,3 +48,6 @@ src/main/resources/static/
 
 ### 部署脚本（仅Windows本地使用，不纳入git） ###
 deploy/
+
+### 临时文件 ###
+docs/
