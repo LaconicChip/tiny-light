@@ -1,24 +1,32 @@
 <script setup>
-import { ref, watch } from 'vue'
-import { PhSparkle, PhPencilSimple, PhTrash, PhCheck, PhX, PhSmiley, PhLeaf, PhMoon, PhSmileySad, PhHeart } from '@phosphor-icons/vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps({
   todayLight: Object,
+  dateLabel: String,
 })
 
 const emit = defineEmits(['submit', 'update', 'delete'])
 
+const prm = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+const touch = window.matchMedia('(hover: none)').matches
+
+/* 7 种心情 + 完整内联 SVG 字符串（stroke 风格，stroke-width 1.5）
+   用 v-html 打在 span 上，让 HTML 解析器走内联 SVG 路径，规避 SVG innerHTML 命名空间兼容问题 */
+const SVG_WRAP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'
+const moods = [
+  { key: '开心', inner: '<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>' },
+  { key: '平静', inner: '<path d="M11 20A7 7 0 019.8 6.9C15.5 4.9 17 3.5 19 2c1 2 2 4.5 2 8 0 5.5-4.78 10-10 10z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/>' },
+  { key: '感恩', inner: '<path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>' },
+  { key: '疲惫', inner: '<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>' },
+  { key: '感动', inner: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>' },
+  { key: '思念', inner: '<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>' },
+  { key: '期待', inner: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>' },
+].map(m => ({ ...m, svg: SVG_WRAP + m.inner + '</svg>' }))
+
 const content = ref('')
 const mood = ref('')
 const isEditing = ref(false)
-
-const moods = [
-  { key: '开心', icon: PhSmiley },
-  { key: '平静', icon: PhLeaf },
-  { key: '疲惫', icon: PhMoon },
-  { key: '难过', icon: PhSmileySad },
-  { key: '感恩', icon: PhHeart },
-]
 
 watch(() => props.todayLight, (t) => {
   if (t) {
@@ -38,292 +46,412 @@ function submit() {
   content.value = ''
   mood.value = ''
 }
-
 function startEdit() {
   isEditing.value = true
   content.value = props.todayLight.content
   mood.value = props.todayLight.mood || ''
 }
-
 function cancelEdit() {
   isEditing.value = false
   content.value = props.todayLight.content
   mood.value = props.todayLight.mood || ''
 }
-
 function saveEdit() {
   if (!content.value.trim() || !mood.value) return
   emit('update', { content: content.value.trim(), mood: mood.value })
 }
-
 function confirmDelete() {
-  if (confirm('确定删除今天的微光吗？删了可以重新点亮。')) {
-    emit('delete')
-  }
+  if (confirm('确定删除今天的微光吗？删了可以重新点亮。')) emit('delete')
 }
+
+/* 3D 倾斜 + 磁吸按钮（仅桌面 + 非减少动效） */
+const cardRef = ref(null)
+const btnRef = ref(null)
+let tiltRaf = null
+let cardMoveHandler = null
+let cardLeaveHandler = null
+let btnMoveHandler = null
+let btnLeaveHandler = null
+
+onMounted(() => {
+  if (prm || touch) return
+  const card = cardRef.value
+  const btn = btnRef.value
+  if (card) {
+    cardMoveHandler = (e) => {
+      if (!card.classList.contains('visible')) return
+      if (tiltRaf) cancelAnimationFrame(tiltRaf)
+      tiltRaf = requestAnimationFrame(() => {
+        const r = card.getBoundingClientRect()
+        const x = (e.clientX - r.left) / r.width - 0.5
+        const y = (e.clientY - r.top) / r.height - 0.5
+        card.style.transform = `perspective(1000px) rotateX(${-y * 3.5}deg) rotateY(${x * 3.5}deg) rotate(-1.2deg) translate3d(0,0,0)`
+        tiltRaf = null
+      })
+    }
+    cardLeaveHandler = () => {
+      if (tiltRaf) cancelAnimationFrame(tiltRaf)
+      if (card.classList.contains('visible')) {
+        card.style.transform = 'perspective(1000px) rotate(-1.2deg) translate3d(0,0,0)'
+      }
+      tiltRaf = null
+    }
+    card.addEventListener('mousemove', cardMoveHandler)
+    card.addEventListener('mouseleave', cardLeaveHandler)
+  }
+  if (btn) {
+    btnMoveHandler = (e) => {
+      const r = btn.getBoundingClientRect()
+      const cx = r.left + r.width / 2
+      const cy = r.top + r.height / 2
+      btn.style.transform = `translate3d(${(e.clientX - cx) * 0.15}px,${(e.clientY - cy) * 0.15 - 2}px,0) scale(1.02)`
+    }
+    btnLeaveHandler = () => { btn.style.transform = '' }
+    btn.addEventListener('mousemove', btnMoveHandler)
+    btn.addEventListener('mouseleave', btnLeaveHandler)
+  }
+})
+
+onUnmounted(() => {
+  if (tiltRaf) cancelAnimationFrame(tiltRaf)
+  const card = cardRef.value
+  const btn = btnRef.value
+  if (card) {
+    card.removeEventListener('mousemove', cardMoveHandler)
+    card.removeEventListener('mouseleave', cardLeaveHandler)
+  }
+  if (btn) {
+    btn.removeEventListener('mousemove', btnMoveHandler)
+    btn.removeEventListener('mouseleave', btnLeaveHandler)
+  }
+})
+
+const showForm = (t) => !t || isEditing.value
 </script>
 
 <template>
-  <section class="light-input">
+  <div class="input-card" ref="cardRef">
+    <!-- 未点亮 或 编辑态：表单 -->
+    <template v-if="showForm(todayLight)">
+      <div class="input-date">
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 4v4l2.5 2.5"/></svg>
+        {{ dateLabel }}
+      </div>
+      <div class="input-prompt">{{ isEditing ? '修改今天的微光' : '今天，是什么照亮了你？' }}</div>
+      <textarea
+        v-model="content"
+        class="input-textarea"
+        rows="3"
+        maxlength="200"
+        placeholder="写下今天的微光——一杯热茶、一个微笑、一阵晚风……"
+      />
+      <div class="mood-tags">
+        <span
+          v-for="m in moods"
+          :key="m.key"
+          :class="['mood-tag', { selected: mood === m.key }]"
+          @click="mood = m.key"
+        >
+          <span class="mood-icon" v-html="m.svg"></span>
+          {{ m.key }}
+        </span>
+      </div>
+      <p v-if="content.trim() && !mood" class="mood-hint">先选个心情吧</p>
+      <div class="form-actions">
+        <button v-if="isEditing" class="ghost-btn" @click="cancelEdit">取消</button>
+        <button
+          ref="btnRef"
+          class="light-btn"
+          :disabled="!content.trim() || !mood"
+          @click="isEditing ? saveEdit() : submit()"
+        >
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0l1.8 5.5L16 8l-6.2 2.5L8 16l-1.8-5.5L0 8l6.2-2.5z"/></svg>
+          {{ isEditing ? '保存修改' : '点亮今天' }}
+        </button>
+      </div>
+    </template>
+
     <!-- 已点亮 + 查看态 -->
-    <template v-if="todayLight && !isEditing">
-      <p class="lit-tip">
-        <PhSparkle :size="15" weight="fill" />
-        <span>今天的微光已点亮</span>
-      </p>
-      <blockquote class="lit-content">{{ todayLight.content }}</blockquote>
-      <p v-if="todayLight.mood" class="lit-mood">
-        <component :is="moods.find(m => m.key === todayLight.mood)?.icon" :size="15" weight="regular" />
-        <span>{{ todayLight.mood }}</span>
-      </p>
-      <div class="actions">
-        <button class="text-btn" @click="startEdit">
-          <PhPencilSimple :size="13" weight="regular" />
-          <span>编辑</span>
-        </button>
-        <button class="text-btn danger" @click="confirmDelete">
-          <PhTrash :size="13" weight="regular" />
-          <span>删除</span>
-        </button>
-      </div>
-    </template>
-
-    <!-- 已点亮 + 编辑态 -->
-    <template v-else-if="todayLight && isEditing">
-      <p class="lit-tip editing">
-        <PhPencilSimple :size="15" weight="regular" />
-        <span>编辑今天的微光</span>
-      </p>
-      <textarea
-        v-model="content"
-        rows="3"
-        maxlength="200"
-        placeholder="今天有什么让你心头一暖的瞬间？"
-      />
-      <div class="moods">
-        <button
-          v-for="m in moods"
-          :key="m.key"
-          type="button"
-          :class="['mood-btn', { active: mood === m.key }]"
-          @click="mood = m.key"
-        >
-          <component :is="m.icon" :size="18" :weight="mood === m.key ? 'fill' : 'regular'" />
-          <span>{{ m.key }}</span>
-        </button>
-      </div>
-      <p v-if="content.trim() && !mood" class="hint">先选个心情吧</p>
-      <div class="actions">
-        <button class="text-btn" @click="cancelEdit">
-          <PhX :size="13" weight="regular" />
-          <span>取消</span>
-        </button>
-        <button class="submit-btn" :disabled="!content.trim() || !mood" @click="saveEdit">
-          <PhCheck :size="15" weight="bold" />
-          <span>保存</span>
-        </button>
-      </div>
-    </template>
-
-    <!-- 未点亮 -->
     <template v-else>
-      <p class="form-tip">今天有什么让你心头一暖的瞬间？</p>
-      <textarea
-        v-model="content"
-        rows="3"
-        maxlength="200"
-        placeholder="一句话就够，记下这束光。"
-      />
-      <div class="moods">
-        <button
-          v-for="m in moods"
-          :key="m.key"
-          type="button"
-          :class="['mood-btn', { active: mood === m.key }]"
-          @click="mood = m.key"
-        >
-          <component :is="m.icon" :size="18" :weight="mood === m.key ? 'fill' : 'regular'" />
-          <span>{{ m.key }}</span>
-        </button>
+      <div class="lit-state show">
+        <div class="lit-glow"></div>
+        <div class="lit-quote">"{{ todayLight.content }}"</div>
+        <div class="lit-meta">
+          <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="5"/></svg>
+          LIT · {{ todayLight.mood }}
+        </div>
+        <div class="lit-actions">
+          <button class="lit-action-btn" @click="startEdit">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            编辑
+          </button>
+          <button class="lit-action-btn danger" @click="confirmDelete">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+            删除
+          </button>
+        </div>
       </div>
-      <p v-if="content.trim() && !mood" class="hint">先选个心情吧</p>
-      <button class="submit-btn block" :disabled="!content.trim() || !mood" @click="submit">
-        <PhSparkle :size="15" weight="fill" />
-        <span>点亮今天</span>
-      </button>
     </template>
-  </section>
+  </div>
 </template>
 
 <style scoped>
-.light-input {
+.input-card {
   position: relative;
-  background: var(--bg-paper);
-  border-left: 2px solid var(--gold);
-  border-radius: 0 8px 8px 0;
-  padding: 26px 28px 22px;
-}
-.lit-tip,
-.lit-tip.editing {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0 0 14px;
-  color: var(--gold);
-  font-family: var(--font-display);
-  font-size: 15px;
-  letter-spacing: 0.06em;
-}
-.form-tip {
-  margin: 0 0 14px;
-  color: var(--text);
-  font-family: var(--font-display);
-  font-size: 17px;
-  letter-spacing: 0.04em;
-}
-textarea {
+  background: var(--glass-dark);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid var(--glass-border);
+  border-radius: 22px;
+  padding: clamp(22px, 3.5vw, 36px);
   width: 100%;
-  resize: none;
-  border: none;
-  border-bottom: 1px dashed var(--hairline);
-  border-radius: 0;
-  padding: 8px 0 12px;
-  font-size: 16px;
-  font-family: var(--font-display);
-  line-height: 1.85;
-  background: transparent;
-  color: var(--text);
-  box-sizing: border-box;
-  overflow-y: auto;
-  transition: border-color 150ms ease;
+  max-width: 480px;
+  margin-left: clamp(0px, 3vw, 40px);
+  transform: perspective(1000px) rotate(-1.2deg) translate3d(0, 40px, 0);
+  opacity: 0;
+  transition: opacity 0.9s var(--ease-out), box-shadow 0.4s, transform 0.5s var(--ease-out);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3), 0 0 60px rgba(237, 206, 110, 0.04);
 }
-textarea::placeholder {
-  color: var(--text-faint);
-  font-family: var(--font-body);
-  font-size: 14px;
+.input-card.visible {
+  opacity: 1;
+  transform: perspective(1000px) rotate(-1.2deg) translate3d(0, 0, 0);
 }
-textarea:focus {
-  outline: none;
-  border-bottom-color: var(--gold);
-}
-.moods {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 14px;
-  margin: 16px 0 12px;
-}
-.mood-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 12px 5px 10px;
-  border: none;
-  background: transparent;
-  color: var(--text-soft);
-  cursor: pointer;
-  font-size: 14px;
-  font-family: var(--font-display);
-  letter-spacing: 0.04em;
-  transition: color 150ms ease, transform 100ms ease;
-}
-.mood-btn:hover {
-  color: var(--gold);
-  transform: translateY(-1px);
-}
-.mood-btn.active {
-  color: var(--gold);
-  position: relative;
-}
-.mood-btn.active::after {
+.input-card::before {
   content: '';
   position: absolute;
-  left: 8px;
-  right: 8px;
-  bottom: 2px;
-  height: 1px;
-  background: var(--gold);
-  opacity: 0.6;
+  inset: -1px;
+  border-radius: 22px;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(237,206,110,0.3), transparent 35%, transparent 65%, rgba(237,206,110,0.15));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
 }
-.hint {
-  margin: 0 0 8px;
-  color: var(--text-soft);
-  font-size: 13px;
-  text-align: right;
-  font-family: var(--font-body);
-}
-.actions {
+.input-date {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--gold-3);
+  letter-spacing: 0.2em;
+  margin-bottom: 10px;
   display: flex;
-  justify-content: flex-end;
   align-items: center;
-  gap: 4px;
-  margin-top: 8px;
+  gap: 6px;
 }
-.text-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border: none;
-  background: transparent;
-  color: var(--text-soft);
-  cursor: pointer;
-  font-size: 13px;
-  font-family: var(--font-body);
-  padding: 6px 10px;
-  border-radius: 6px;
-  transition: color 150ms ease, background 150ms ease;
+.input-prompt {
+  font-family: var(--font-sans);
+  font-size: clamp(1rem, 2vw, 1.2rem);
+  font-weight: 300;
+  color: var(--platinum-1);
+  margin-bottom: 20px;
+  line-height: 1.7;
+  letter-spacing: 0.03em;
 }
-.text-btn:hover {
-  color: var(--text);
-  background: rgba(201, 169, 97, 0.08);
+.input-textarea {
+  width: 100%;
+  min-height: 80px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(237, 206, 110, 0.1);
+  border-radius: 12px;
+  padding: 14px;
+  color: var(--platinum-1);
+  font-family: var(--font-sans);
+  font-size: 0.92rem;
+  font-weight: 300;
+  line-height: 1.8;
+  resize: none;
+  outline: none;
+  transition: border-color 0.3s, box-shadow 0.3s, background 0.3s;
+  box-sizing: border-box;
 }
-.text-btn.danger:hover {
-  color: #c44545;
-  background: rgba(196, 69, 69, 0.06);
+.input-textarea::placeholder { color: rgba(245, 242, 235, 0.22); }
+.input-textarea:focus {
+  border-color: rgba(237, 206, 110, 0.28);
+  box-shadow: 0 0 24px rgba(237, 206, 110, 0.06);
+  background: rgba(255, 255, 255, 0.05);
 }
-.submit-btn {
+.mood-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 18px 0 12px;
+}
+.mood-tag {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 20px;
-  border: none;
-  border-radius: 999px;
-  background: var(--gold);
-  color: #fff;
-  font-size: 14px;
-  font-family: var(--font-display);
+  padding: 7px 14px 7px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-family: var(--font-sans);
+  font-weight: 300;
   letter-spacing: 0.06em;
+  border: 1px solid rgba(237, 206, 110, 0.12);
+  background: rgba(237, 206, 110, 0.04);
+  color: var(--platinum-3);
   cursor: pointer;
-  transition: background 150ms ease;
+  user-select: none;
+  transition: all 0.3s var(--ease-spring);
 }
-.submit-btn:hover:not(:disabled) {
-  background: var(--gold-lit);
+.mood-tag:nth-child(odd) { transform: translateY(2px); }
+.mood-tag:nth-child(3n) { transform: translateY(-1px); }
+.mood-tag svg { width: 14px; height: 14px; opacity: 0.7; transition: opacity 0.3s; }
+.mood-tag:hover {
+  background: rgba(237, 206, 110, 0.1);
+  border-color: rgba(237, 206, 110, 0.3);
+  color: var(--gold-3);
+  transform: translateY(-3px) scale(1.06);
+  box-shadow: 0 4px 16px rgba(237, 206, 110, 0.12);
 }
-.submit-btn.block {
-  margin-top: 8px;
-  padding: 10px 26px;
+.mood-tag:hover svg { opacity: 1; }
+.mood-tag.selected {
+  background: linear-gradient(135deg, var(--gold-1), var(--gold-2));
+  border-color: var(--gold-3);
+  color: var(--night-2);
+  font-weight: 500;
+  box-shadow: 0 4px 20px rgba(237, 206, 110, 0.3);
+  transform: translateY(-2px) scale(1.04);
 }
-.submit-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+.mood-tag.selected svg { opacity: 1; }
+.mood-hint {
+  font-size: 0.72rem;
+  color: var(--gold-3);
+  letter-spacing: 0.1em;
+  margin: 0 0 12px;
+  opacity: 0.7;
 }
-.lit-content {
-  margin: 0 0 10px;
-  padding: 0 0 0 4px;
-  border: none;
-  color: var(--text);
-  font-size: 18px;
-  line-height: 1.85;
-  font-family: var(--font-display);
-  letter-spacing: 0.02em;
+.form-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
 }
-.lit-mood {
+.ghost-btn {
+  padding: 12px 22px;
+  border-radius: 28px;
+  border: 1px solid rgba(237, 206, 110, 0.2);
+  background: transparent;
+  color: var(--platinum-3);
+  font-family: var(--font-sans);
+  font-size: 0.84rem;
+  font-weight: 300;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: all 0.3s var(--ease-spring);
+}
+.ghost-btn:hover {
+  border-color: rgba(237, 206, 110, 0.4);
+  color: var(--gold-3);
+}
+.light-btn {
   display: inline-flex;
   align-items: center;
+  gap: 8px;
+  padding: 12px 28px;
+  border-radius: 28px;
+  border: none;
+  background: linear-gradient(135deg, var(--gold-1), var(--gold-2), var(--gold-3));
+  color: var(--night-2);
+  font-family: var(--font-sans);
+  font-size: 0.88rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.35s var(--ease-spring);
+  box-shadow: 0 4px 20px rgba(237, 206, 110, 0.25), 0 0 40px rgba(248, 227, 154, 0.08);
+}
+.light-btn svg { width: 14px; height: 14px; }
+.light-btn::before {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 100%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transition: left 0.6s;
+}
+.light-btn:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 8px 30px rgba(237, 206, 110, 0.4), 0 0 60px rgba(248, 227, 154, 0.15);
+}
+.light-btn:hover:not(:disabled)::before { left: 100%; }
+.light-btn:active:not(:disabled) { transform: scale(0.97); }
+.light-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* 已点亮态 */
+.lit-state { text-align: center; padding: 16px 0; }
+.lit-glow {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 20px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--gold-4) 0%, var(--gold-2) 35%, var(--gold-1) 60%, transparent 75%);
+  animation: starPulse 3s ease-in-out infinite;
+}
+@keyframes starPulse {
+  0%, 100% { box-shadow: 0 0 20px var(--gold-glow-mid), 0 0 50px rgba(237, 206, 110, 0.12); transform: scale(1); }
+  50% { box-shadow: 0 0 35px rgba(237, 206, 110, 0.5), 0 0 70px rgba(237, 206, 110, 0.2); transform: scale(1.08); }
+}
+.lit-quote {
+  font-family: var(--font-sans);
+  font-size: 1.1rem;
+  font-weight: 300;
+  color: var(--platinum-1);
+  line-height: 2;
+  letter-spacing: 0.05em;
+  margin-bottom: 12px;
+}
+.lit-meta {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--gold-3);
+  letter-spacing: 0.2em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   gap: 6px;
-  margin: 0 0 14px;
-  color: var(--text-soft);
-  font-size: 14px;
-  font-family: var(--font-display);
-  letter-spacing: 0.04em;
+  margin-bottom: 18px;
+}
+.lit-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+.lit-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(237, 206, 110, 0.15);
+  background: rgba(237, 206, 110, 0.04);
+  color: var(--platinum-3);
+  font-family: var(--font-sans);
+  font-size: 0.74rem;
+  font-weight: 300;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.3s var(--ease-spring);
+}
+.lit-action-btn:hover {
+  border-color: rgba(237, 206, 110, 0.35);
+  color: var(--gold-3);
+  background: rgba(237, 206, 110, 0.1);
+}
+.lit-action-btn.danger:hover {
+  border-color: rgba(196, 69, 69, 0.4);
+  color: #e07070;
+  background: rgba(196, 69, 69, 0.08);
+}
+
+@media (max-width: 768px) {
+  .input-card { margin-left: 0; max-width: 100%; transform: perspective(1000px) rotate(-0.6deg) translate3d(0, 40px, 0); }
+  .input-card.visible { transform: perspective(1000px) rotate(-0.6deg) translate3d(0, 0, 0); }
+}
+@media (max-width: 480px) {
+  .input-card { padding: 18px; border-radius: 16px; }
 }
 </style>

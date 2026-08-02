@@ -1,6 +1,5 @@
 <script setup>
 import { onMounted, onUnmounted } from 'vue'
-import { PhX } from '@phosphor-icons/vue'
 
 const props = defineProps({
   light: Object,
@@ -12,6 +11,12 @@ function onKey(e) {
 }
 onMounted(() => window.addEventListener('keydown', onKey))
 onUnmounted(() => window.removeEventListener('keydown', onKey))
+
+const monthEng = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
+function formatDate(ds) {
+  const [y, m, d] = ds.split('-')
+  return `${y} · ${monthEng[parseInt(m) - 1]} ${d}`
+}
 </script>
 
 <template>
@@ -19,17 +24,17 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     <div class="overlay" @click.self="$emit('close')">
       <div class="modal" role="dialog" aria-modal="true">
         <button class="close-btn" @click="$emit('close')" aria-label="关闭">
-          <PhX :size="18" weight="regular" />
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
-
-        <div class="modal-inner">
-          <p class="date-stamp">{{ light.lightDate }}</p>
-          <p class="content">{{ light.content }}</p>
-          <p v-if="light.mood" class="mood">
-            <span class="mood-dot" />
-            <span>{{ light.mood }}</span>
-          </p>
+        <div class="modal-date">
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0l1.8 5.5L16 8l-6.2 2.5L8 16l-1.8-5.5L0 8l6.2-2.5z"/></svg>
+          {{ formatDate(light.lightDate) }}
         </div>
+        <p class="modal-content">{{ light.content }}</p>
+        <p v-if="light.mood" class="modal-mood">
+          <span class="mood-dot"></span>
+          {{ light.mood }}
+        </p>
       </div>
     </div>
   </Transition>
@@ -39,9 +44,9 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(45, 36, 24, 0.32);
-  backdrop-filter: blur(10px) saturate(120%);
-  -webkit-backdrop-filter: blur(10px) saturate(120%);
+  background: rgba(8, 8, 26, 0.6);
+  backdrop-filter: blur(12px) saturate(120%);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -52,36 +57,38 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   position: relative;
   max-width: 460px;
   width: 100%;
-  background: var(--bg-paper);
-  border-left: 2px solid var(--gold);
-  border-radius: 0 12px 12px 0;
-  box-shadow:
-    0 24px 60px rgba(45, 36, 24, 0.18),
-    0 6px 16px rgba(45, 36, 24, 0.08);
-}
-.modal-inner {
+  background: var(--glass-dark);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
   padding: 36px 32px 28px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4), 0 0 80px rgba(237, 206, 110, 0.06);
 }
-/* 苹果式：spring 进场，critically damped */
-.modal-enter-from .modal,
-.modal-leave-to .modal {
+.modal::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 20px;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(237,206,110,0.3), transparent 40%, transparent 60%, rgba(237,206,110,0.15));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+/* spring 进场 */
+.modal-enter-from .modal, .modal-leave-to .modal {
   transform: scale(0.96) translateY(8px);
   opacity: 0;
 }
-.modal-enter-active .modal,
-.modal-leave-active .modal {
-  transition:
-    transform 280ms cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 200ms ease-out;
+.modal-enter-active .modal, .modal-leave-active .modal {
+  transition: transform 280ms cubic-bezier(0.16, 1, 0.3, 1), opacity 200ms ease-out;
 }
-.modal-enter-from,
-.modal-leave-to {
-  opacity: 0;
-}
-.modal-enter-active,
-.modal-leave-active {
-  transition: opacity 200ms ease-out;
-}
+.modal-enter-from, .modal-leave-to { opacity: 0; }
+.modal-enter-active, .modal-leave-active { transition: opacity 200ms ease-out; }
+
 .close-btn {
   position: absolute;
   top: 14px;
@@ -93,51 +100,55 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   justify-content: center;
   border: none;
   background: transparent;
-  color: var(--text-soft);
+  color: var(--platinum-3);
   cursor: pointer;
   border-radius: 8px;
-  transition: color 150ms ease, background 150ms ease;
+  transition: color 0.2s, background 0.2s;
 }
 .close-btn:hover {
-  color: var(--text);
-  background: rgba(201, 169, 97, 0.1);
+  color: var(--gold-3);
+  background: rgba(237, 206, 110, 0.1);
 }
-.date-stamp {
-  margin: 0 0 18px;
-  color: var(--gold);
-  font-size: 13px;
-  font-family: var(--font-display);
-  letter-spacing: 0.12em;
+.modal-date {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--gold-3);
+  letter-spacing: 0.2em;
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
-.content {
+.modal-date svg { opacity: 0.6; }
+.modal-content {
   margin: 0 0 16px;
-  font-size: 18px;
+  font-size: 1.05rem;
+  font-weight: 300;
   line-height: 1.95;
-  color: var(--text);
-  font-family: var(--font-display);
-  letter-spacing: 0.02em;
+  color: var(--platinum-1);
+  font-family: var(--font-sans);
+  letter-spacing: 0.03em;
 }
-.mood {
+.modal-mood {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   margin: 0;
-  color: var(--text-soft);
-  font-size: 14px;
-  font-family: var(--font-display);
-  letter-spacing: 0.06em;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--gold-3);
+  letter-spacing: 0.15em;
 }
 .mood-dot {
   display: inline-block;
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--gold-lit);
-  box-shadow: 0 0 6px var(--gold-glow);
+  background: var(--gold-2);
+  box-shadow: 0 0 8px var(--gold-glow-mid);
 }
 @media (prefers-reduced-motion: reduce) {
-  .modal-enter-active .modal,
-  .modal-leave-active .modal {
+  .modal-enter-active .modal, .modal-leave-active .modal {
     transition: opacity 150ms ease;
     transform: none;
   }

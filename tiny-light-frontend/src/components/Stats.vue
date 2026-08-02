@@ -5,145 +5,85 @@ const props = defineProps({
   stats: Object,
 })
 
-const maxCount = computed(() => {
-  const d = props.stats?.moodDistribution || {}
-  return Math.max(...Object.values(d), 1)
+const badges = computed(() => {
+  if (!props.stats) return []
+  return [
+    { num: props.stats.currentStreak, label: '连续', cls: 'stat-1' },
+    { num: props.stats.longestStreak, label: '最长', cls: 'stat-2' },
+    { num: props.stats.yearDays, label: '今年', cls: 'stat-3' },
+    { num: props.stats.totalDays, label: '累计', cls: 'stat-4' },
+  ]
 })
 </script>
 
 <template>
-  <section v-if="stats" class="stats">
-    <div class="stat-row">
-      <div class="stat">
-        <div class="num">{{ stats.currentStreak }}</div>
-        <div class="label">连续</div>
-      </div>
-      <span class="sep" />
-      <div class="stat">
-        <div class="num">{{ stats.longestStreak }}</div>
-        <div class="label">最长</div>
-      </div>
-      <span class="sep" />
-      <div class="stat">
-        <div class="num">{{ stats.yearDays }}</div>
-        <div class="label">今年</div>
-      </div>
-      <span class="sep" />
-      <div class="stat">
-        <div class="num">{{ stats.totalDays }}</div>
-        <div class="label">累计</div>
-      </div>
-    </div>
-
+  <template v-if="badges.length">
     <div
-      v-if="stats.moodDistribution && Object.keys(stats.moodDistribution).length"
-      class="mood-dist"
+      v-for="b in badges"
+      :key="b.cls"
+      :class="['stat-badge', b.cls]"
     >
-      <div class="dist-title">心情分布</div>
-      <div
-        v-for="(count, mood) in stats.moodDistribution"
-        :key="mood"
-        class="dist-item"
-      >
-        <span class="dist-mood">{{ mood }}</span>
-        <div class="dist-bar-bg">
-          <div class="dist-bar" :style="{ width: (count / maxCount * 100) + '%' }" />
-        </div>
-        <span class="dist-count">{{ count }}</span>
-      </div>
+      <div class="stat-num">{{ b.num }}</div>
+      <div class="stat-label">{{ b.label }}</div>
     </div>
-  </section>
+  </template>
 </template>
 
 <style scoped>
-.stats {
-  /* 无卡片：直接行内排版，靠空白和细线分隔 */
-}
-.stat-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 0;
-  padding: 4px 0 0;
-}
-.stat {
-  flex: 1;
+.stat-badge {
+  position: absolute;
+  background: rgba(250, 248, 245, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(237, 206, 110, 0.12);
+  border-radius: 16px;
+  padding: 16px 20px;
   text-align: center;
-  padding: 0 8px;
+  min-width: 88px;
+  opacity: 0;
+  transform: translate3d(0, 25px, 0) rotate(var(--rot, 0deg));
+  transition: opacity 0.8s var(--ease-out), transform 0.8s var(--ease-out), box-shadow 0.3s;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+  cursor: default;
 }
-.stat:first-child {
-  text-align: left;
-  padding-left: 0;
+.stat-badge.visible {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) rotate(var(--rot, 0deg));
 }
-.stat:last-child {
-  text-align: right;
-  padding-right: 0;
+.stat-badge:hover {
+  background: rgba(250, 248, 245, 0.12);
+  border-color: rgba(237, 206, 110, 0.25);
+  transform: translate3d(0, -3px, 0) rotate(0deg) scale(1.04);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.15), 0 0 20px rgba(237, 206, 110, 0.08);
 }
-.num {
-  font-size: 32px;
-  font-weight: 500;
-  font-family: var(--font-display);
-  color: var(--gold);
-  line-height: 1;
-  letter-spacing: 0.01em;
-}
-.label {
-  font-size: 12px;
-  color: var(--text-soft);
-  margin-top: 8px;
-  font-family: var(--font-body);
-  letter-spacing: 0.1em;
-}
-.sep {
-  width: 1px;
-  height: 28px;
-  background: var(--hairline);
-  align-self: flex-end;
-  margin-bottom: 20px;
-}
-.mood-dist {
-  margin-top: 24px;
-  padding-top: 18px;
-  border-top: 1px dashed var(--hairline);
-}
-.dist-title {
-  font-family: var(--font-display);
-  font-size: 14px;
-  color: var(--text-soft);
-  margin-bottom: 14px;
-  letter-spacing: 0.1em;
-}
-.dist-item {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 10px;
-}
-.dist-mood {
-  width: 44px;
-  font-size: 14px;
-  font-family: var(--font-display);
-  color: var(--text);
-  letter-spacing: 0.04em;
-}
-.dist-bar-bg {
-  flex: 1;
-  height: 6px;
-  background: var(--bg-soft);
-  border-radius: 3px;
-  overflow: hidden;
-}
-.dist-bar {
-  height: 100%;
-  background: linear-gradient(90deg, var(--gold), var(--gold-lit));
-  border-radius: 3px;
-  transition: width 400ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-.dist-count {
-  width: 24px;
-  text-align: right;
-  font-size: 13px;
-  color: var(--text-soft);
+.stat-num {
   font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
+  font-size: 1.8rem;
+  font-weight: 300;
+  color: var(--gold-2);
+  line-height: 1;
+  margin-bottom: 4px;
+  text-shadow: 0 0 16px rgba(237, 206, 110, 0.2);
+}
+.stat-label {
+  font-size: 0.68rem;
+  font-weight: 300;
+  color: var(--platinum-2);
+  letter-spacing: 0.12em;
+  opacity: 0.7;
+}
+.stat-1 { top: 5px; left: 22%; --rot: -2.5deg; transition-delay: 0.1s; }
+.stat-2 { top: 28px; right: 22%; --rot: 2deg; transition-delay: 0.25s; }
+.stat-3 { top: 82px; left: 32%; --rot: 1.5deg; transition-delay: 0.4s; }
+.stat-4 { top: 72px; right: 30%; --rot: -1deg; transition-delay: 0.55s; }
+
+@media (max-width: 768px) {
+  .stat-badge {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    margin: 4px;
+  }
 }
 </style>
