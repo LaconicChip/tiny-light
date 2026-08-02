@@ -8,8 +8,12 @@
   /* 文字 */
   --text-dark:#1a1714; --text-dark-muted:#4a433a; --text-dark-faint:#7a7268;
   --text-light:#f5f2eb; --text-light-muted:rgba(245,242,235,0.5);
-  /* 玻璃态 */
-  --glass-dark:rgba(15,15,40,0.45); --glass-border:rgba(237,206,110,0.18);
+  /* 玻璃态 - Liquid Glass 风格 */
+  --glass-dark:rgba(15,15,40,0.42); --glass-border:rgba(237,206,110,0.22);
+  --glass-highlight:rgba(255,255,255,0.04);  /* 顶部边缘高光（减弱） */
+  --glass-inner-shadow:inset 0 1px 0 var(--glass-highlight);  /* 仅保留顶部内高光 */
+  --glass-outer-shadow:0 6px 24px rgba(0,0,0,0.22), 0 2px 6px rgba(0,0,0,0.1);  /* 柔和光晕 */
+  --glass-blur:blur(18px) saturate(150%) brightness(1.02);  /* 适度折射 */
   /* 字体：Geist 为主 */
   --font-sans:'Geist','MiSans','PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei',sans-serif;
   --font-mono:'Geist Mono','SF Mono','JetBrains Mono',Menlo,monospace;
@@ -82,7 +86,7 @@ button{font-family:inherit}
 .burst-particle{position:absolute;width:4px;height:4px;border-radius:50%;pointer-events:none}
 
 /* tooltip */
-.tooltip{position:fixed;background:var(--glass-dark);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid var(--glass-border);border-radius:10px;padding:10px 14px;font-size:0.78rem;font-weight:300;color:var(--platinum-2);pointer-events:none;z-index:100;opacity:0;transform:translate3d(0,5px,0);transition:opacity 0.2s,transform 0.2s;box-shadow:0 6px 24px rgba(0,0,0,0.25);max-width:240px}
+.tooltip{position:fixed;background:var(--glass-dark);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid var(--glass-border);border-radius:12px;padding:10px 14px;font-size:0.78rem;font-weight:300;color:var(--platinum-2);pointer-events:none;z-index:100;opacity:0;transform:translate3d(0,5px,0);transition:opacity 0.2s,transform 0.2s;box-shadow:var(--glass-inner-shadow),var(--glass-outer-shadow);max-width:240px}
 .tooltip.show{opacity:1;transform:translate3d(0,0,0)}
 .tip-date{color:var(--gold-3);font-family:var(--font-mono);font-size:0.68rem;margin-bottom:3px;letter-spacing:0.08em;display:flex;align-items:center;gap:5px}
 .tip-text{color:var(--platinum-3);font-size:0.76rem;line-height:1.6}

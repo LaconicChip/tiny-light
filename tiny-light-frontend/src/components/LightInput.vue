@@ -198,10 +198,10 @@ const showForm = (t) => !t || isEditing.value
 .input-card {
   position: relative;
   background: var(--glass-dark);
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-border);
-  border-radius: 22px;
+  border-radius: 24px;
   padding: clamp(22px, 3.5vw, 36px);
   width: 100%;
   max-width: 480px;
@@ -209,7 +209,7 @@ const showForm = (t) => !t || isEditing.value
   transform: perspective(1000px) rotate(-1.2deg) translate3d(0, 40px, 0);
   opacity: 0;
   transition: opacity 0.9s var(--ease-out), box-shadow 0.4s, transform 0.5s var(--ease-out);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3), 0 0 60px rgba(237, 206, 110, 0.04);
+  box-shadow: var(--glass-inner-shadow), var(--glass-outer-shadow), 0 0 60px rgba(237, 206, 110, 0.06);
 }
 .input-card.visible {
   opacity: 1;

@@ -464,15 +464,15 @@ onUnmounted(() => {
   left: 50%;
   transform: translateX(-50%);
   background: var(--glass-dark);
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid rgba(196, 69, 69, 0.4);
   color: #f5f2eb;
   padding: 10px 18px;
-  border-radius: 12px;
+  border-radius: 14px;
   font-size: 13px;
   z-index: 200;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--glass-inner-shadow), 0 8px 24px rgba(0, 0, 0, 0.32);
   letter-spacing: 0.04em;
 }
 .error-enter-from, .error-leave-to {

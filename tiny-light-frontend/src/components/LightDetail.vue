@@ -42,9 +42,9 @@ function formatDate(ds) {
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(8, 8, 26, 0.6);
-  backdrop-filter: blur(12px) saturate(120%);
-  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  background: rgba(8, 8, 26, 0.55);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -55,21 +55,21 @@ function formatDate(ds) {
   position: relative;
   max-width: 460px;
   width: 100%;
-  background: rgba(250, 248, 245, 0.9);
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
-  border: 1px solid rgba(237, 206, 110, 0.28);
-  border-radius: 20px;
+  background: rgba(250, 248, 245, 0.82);
+  backdrop-filter: blur(22px) saturate(150%) brightness(1.04);
+  -webkit-backdrop-filter: blur(22px) saturate(150%) brightness(1.04);
+  border: 1px solid rgba(237, 206, 110, 0.32);
+  border-radius: 24px;
   padding: 36px 32px 28px;
-  box-shadow: 0 24px 60px rgba(60, 50, 30, 0.14), 0 8px 24px rgba(60, 50, 30, 0.06), 0 0 80px rgba(237, 206, 110, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 24px 60px rgba(60, 50, 30, 0.14), 0 8px 24px rgba(60, 50, 30, 0.06), 0 0 80px rgba(237, 206, 110, 0.1);
 }
 .modal::before {
   content: '';
   position: absolute;
   inset: -1px;
-  border-radius: 20px;
+  border-radius: 24px;
   padding: 1px;
-  background: linear-gradient(135deg, rgba(237,206,110,0.45), transparent 40%, transparent 60%, rgba(237,206,110,0.22));
+  background: linear-gradient(135deg, rgba(237,206,110,0.5), transparent 40%, transparent 60%, rgba(237,206,110,0.25));
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;

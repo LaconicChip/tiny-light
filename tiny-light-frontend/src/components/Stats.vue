@@ -32,18 +32,18 @@ const badges = computed(() => {
 <style scoped>
 .stat-badge {
   position: absolute;
-  background: rgba(250, 248, 245, 0.08);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(237, 206, 110, 0.12);
-  border-radius: 16px;
+  background: rgba(250, 248, 245, 0.1);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid rgba(237, 206, 110, 0.18);
+  border-radius: 18px;
   padding: 16px 20px;
   text-align: center;
   min-width: 88px;
   opacity: 0;
   transform: translate3d(0, 25px, 0) rotate(var(--rot, 0deg));
   transition: opacity 0.8s var(--ease-out), transform 0.8s var(--ease-out), box-shadow 0.3s;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--glass-inner-shadow), 0 6px 24px rgba(0, 0, 0, 0.18), 0 0 16px rgba(237, 206, 110, 0.04);
   cursor: default;
 }
 .stat-badge.visible {
@@ -51,10 +51,10 @@ const badges = computed(() => {
   transform: translate3d(0, 0, 0) rotate(var(--rot, 0deg));
 }
 .stat-badge:hover {
-  background: rgba(250, 248, 245, 0.12);
-  border-color: rgba(237, 206, 110, 0.25);
+  background: rgba(250, 248, 245, 0.15);
+  border-color: rgba(237, 206, 110, 0.3);
   transform: translate3d(0, -3px, 0) rotate(0deg) scale(1.04);
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.15), 0 0 20px rgba(237, 206, 110, 0.08);
+  box-shadow: var(--glass-inner-shadow), 0 12px 36px rgba(0, 0, 0, 0.22), 0 0 28px rgba(237, 206, 110, 0.12);
 }
 .stat-num {
   font-family: var(--font-mono);
