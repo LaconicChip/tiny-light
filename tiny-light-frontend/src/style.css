@@ -55,7 +55,8 @@ button{font-family:inherit}
 }
 
 /* 极光飘带 */
-/* 极光飘带：3 条 blur 大纹理（移动端白边 bug：合并成 1 个 blur 元素后捏合缩放露白，保持原版 3 条） */
+/* 极光飘带：3 条 blur 大纹理（原版结构。CSS 合并/canvas 烘焙都会在移动端捏合缩放露白边，
+   仅原版 3 条独立 blur 层无此问题，保持原样） */
 .bg-aurora{position:absolute;top:0;left:0;right:0;height:1800px;z-index:0;pointer-events:none;overflow:hidden}
 .aurora-band{position:absolute;width:160%;height:450px;filter:blur(45px);opacity:0.12;border-radius:50%;transform:translateZ(0)}
 .aurora-1{top:8%;left:-40%;background:radial-gradient(ellipse,rgba(120,100,180,0.4),transparent 70%);animation:drift1 28s ease-in-out infinite}
@@ -120,3 +121,4 @@ button{font-family:inherit}
   }
   .aurora-band{filter:blur(30px)}
 }
+
