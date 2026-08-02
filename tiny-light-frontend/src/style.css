@@ -44,9 +44,6 @@ button{font-family:inherit}
    aurora/moon-glow 的 blur 滤镜本身就在合成层上渲染，无需 will-change。 */
 .hero-emblem,.scroll-dot,.cursor-glow,.shooting-star{will-change:transform,opacity;contain:layout style}
 
-/* 噪点纹理 */
-.noise{position:fixed;inset:0;z-index:9999;pointer-events:none;opacity:0.025;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");background-size:200px}
-
 /* 背景渐变：深空 -> 紫暮 -> 白金晨曦，高度跟随内容（#app position:relative）
    手机端基准：过渡区在 ~50% 完成（Stats 落在过渡区，星光河标题~57%已在浅色区） */
 .bg-gradient{position:absolute;top:0;left:0;right:0;height:100%;z-index:0;pointer-events:none;background:linear-gradient(180deg,var(--night-1) 0%,var(--night-2) 8%,var(--night-3) 18%,#252548 26%,#38305a 33%,#524868 40%,#706270 46%,#8e8082 50%,#b0a398 55%,#cdc4b2 60%,var(--platinum-3) 68%,var(--platinum-2) 80%,var(--platinum-1) 100%)}
@@ -58,6 +55,7 @@ button{font-family:inherit}
 }
 
 /* 极光飘带 */
+/* 极光飘带：3 条 blur 大纹理（移动端白边 bug：合并成 1 个 blur 元素后捏合缩放露白，保持原版 3 条） */
 .bg-aurora{position:absolute;top:0;left:0;right:0;height:1800px;z-index:0;pointer-events:none;overflow:hidden}
 .aurora-band{position:absolute;width:160%;height:450px;filter:blur(45px);opacity:0.12;border-radius:50%;transform:translateZ(0)}
 .aurora-1{top:8%;left:-40%;background:radial-gradient(ellipse,rgba(120,100,180,0.4),transparent 70%);animation:drift1 28s ease-in-out infinite}
@@ -114,13 +112,11 @@ button{font-family:inherit}
 /* ============ 移动端性能降级（hover:none + pointer:coarse = 真触屏设备） ============
    玻璃态：backdrop-filter blur(18px) 在中低端安卓/iOS 早期版本是性能黑洞（默认 CPU 渲染），
    移动端改用加深底色 + 移除模糊，保留玻璃质感和金色描边，损失"折射感"换取流畅度。
-   noise：feTurbulence 全屏滤镜移动端昂贵且 opacity 0.025 几乎不可见，直接关掉。
    aurora：blur(70px) 太重，移动端降到 35px，飘带仍在，柔和度略减。 */
 @media(hover:none) and (pointer:coarse){
   :root{
     --glass-blur:none;
     --glass-dark:rgba(15,15,40,0.72);  /* 加深补偿失去的折射 */
   }
-  .noise{display:none}
   .aurora-band{filter:blur(30px)}
 }

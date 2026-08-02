@@ -216,9 +216,10 @@ function initBackgroundCanvas() {
       p.y += p.vy
       p.p += 0.015
       const o = p.op * (0.6 + 0.4 * Math.sin(p.p))
+      ctx.globalAlpha = p.gold ? o : o * 0.3
+      ctx.fillStyle = p.gold ? '#f8e39a' : '#f5f2eb'
       ctx.beginPath()
       ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
-      ctx.fillStyle = p.gold ? `rgba(248,227,154,${o})` : `rgba(245,242,235,${o * 0.3})`
       ctx.fill()
       if (p.y < -15 || p.x < -15 || p.x > w + 15) ps[i] = makeParticle(false)
     }
@@ -231,14 +232,16 @@ function initBackgroundCanvas() {
       if (op < 0.05) continue
       const r = (s.sz * (1 + 0.3 * k)) / 2
       const x = s.x * w, y = s.y * h
+      ctx.globalAlpha = op
+      ctx.fillStyle = s.gold ? '#f8e39a' : '#f0ede6'
       ctx.beginPath()
       ctx.arc(x, y, r, 0, Math.PI * 2)
-      ctx.fillStyle = s.gold ? `rgba(248,227,154,${op})` : `rgba(240,237,230,${op})`
       ctx.fill()
       if (s.glow) {
+        ctx.globalAlpha = 0.2
+        ctx.fillStyle = '#f8e39a'
         ctx.beginPath()
         ctx.arc(x, y, s.sz * 3, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(248,227,154,0.2)`
         ctx.fill()
       }
     }
@@ -269,14 +272,16 @@ function initBackgroundCanvas() {
       p.life -= 0.02
       if (p.life <= 0) { burstParticles.splice(i, 1); continue }
       const op = p.life * (p.isGold ? 0.7 : 0.3)
+      ctx.globalAlpha = op
+      ctx.fillStyle = p.isGold ? '#f8e39a' : '#f5f2eb'
       ctx.beginPath()
       ctx.arc(p.x, p.y, 2 * p.life, 0, Math.PI * 2)
-      ctx.fillStyle = p.isGold ? `rgba(248,227,154,${op})` : `rgba(245,242,235,${op})`
       ctx.fill()
       if (p.isGold) {
+        ctx.globalAlpha = op * 0.5
+        ctx.fillStyle = '#edce6e'
         ctx.beginPath()
         ctx.arc(p.x, p.y, 5 * p.life, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(237,206,110,${op * 0.5})`
         ctx.fill()
       }
     }
@@ -526,7 +531,6 @@ onUnmounted(() => {
   </div>
   <canvas id="particleCanvas" ref="particleCanvasRef"></canvas>
   <div class="shooting-stars" ref="shootingStarsRef"></div>
-  <div class="noise"></div>
 
   <Transition name="error">
     <div v-if="errorMsg" class="error-bar">{{ errorMsg }}</div>
@@ -689,7 +693,6 @@ onUnmounted(() => {
   height: 380px;
   border-radius: 50%;
   background: radial-gradient(circle, rgba(248,227,154,0.1) 0%, rgba(237,206,110,0.03) 40%, transparent 70%);
-  filter: blur(18px);
   animation: moonBreath 8s ease-in-out infinite;
   pointer-events: none;
 }

@@ -295,8 +295,8 @@ function createRipple(x, y) {
       <text v-for="(m, i) in monthLabels" :key="i" :x="m.x" :y="m.y + 70" text-anchor="middle">{{ m.name }}</text>
     </g>
     <g v-if="todayPos">
-      <circle class="today-pulse-1" :cx="todayPos.x" :cy="todayPos.y" fill="none" stroke="rgba(237,206,110,0.3)" stroke-width="1.2"/>
-      <circle class="today-pulse-2" :cx="todayPos.x" :cy="todayPos.y" fill="none" stroke="rgba(248,227,154,0.12)" stroke-width="0.9"/>
+      <circle class="today-pulse-1" :cx="todayPos.x" :cy="todayPos.y" :r="12" fill="none" stroke="rgba(237,206,110,0.3)" stroke-width="1.2"/>
+      <circle class="today-pulse-2" :cx="todayPos.x" :cy="todayPos.y" :r="18" fill="none" stroke="rgba(248,227,154,0.12)" stroke-width="0.9"/>
       <circle class="today-halo" :cx="todayPos.x" :cy="todayPos.y" r="17" fill="none" stroke="rgba(237,206,110,0.45)" stroke-width="1.2"/>
     </g>
     </svg>
@@ -439,15 +439,15 @@ function createRipple(x, y) {
   0%, 100% { opacity: 0.35; }
   50% { opacity: 0.7; }
 }
-.today-pulse-1 { animation: todayPulse1 3s ease-in-out infinite; }
+.today-pulse-1 { transform-box: fill-box; transform-origin: center; vector-effect: non-scaling-stroke; animation: todayPulse1 3s ease-in-out infinite; }
 @keyframes todayPulse1 {
-  0%, 100% { r: 12; opacity: 0.5; }
-  50% { r: 30; opacity: 0; }
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(2.5); opacity: 0; }
 }
-.today-pulse-2 { animation: todayPulse2 3s ease-in-out 0.5s infinite; }
+.today-pulse-2 { transform-box: fill-box; transform-origin: center; vector-effect: non-scaling-stroke; animation: todayPulse2 3s ease-in-out 0.5s infinite; }
 @keyframes todayPulse2 {
-  0%, 100% { r: 18; opacity: 0.3; }
-  50% { r: 38; opacity: 0; }
+  0%, 100% { transform: scale(1); opacity: 0.3; }
+  50% { transform: scale(2.11); opacity: 0; }
 }
 .river-footer {
   margin-top: 6px;
