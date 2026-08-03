@@ -101,12 +101,13 @@ function formatDate(ds) {
   color: var(--text-dark-muted);
   cursor: pointer;
   border-radius: 8px;
-  transition: color 0.2s, background 0.2s;
+  transition: color 0.2s, background 0.2s, transform 0.16s ease-out;
 }
 .close-btn:hover {
   color: var(--gold-3);
   background: rgba(237, 206, 110, 0.1);
 }
+.close-btn:active { transform: scale(0.97); }
 .modal-date {
   font-family: var(--font-mono);
   font-size: 0.78rem;

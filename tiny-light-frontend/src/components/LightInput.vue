@@ -300,7 +300,7 @@ const showForm = (t) => !t || isEditing.value
   color: var(--platinum-3);
   cursor: pointer;
   user-select: none;
-  transition: all 0.3s var(--ease-spring);
+  transition: transform 0.3s var(--ease-spring), background 0.3s var(--ease-out), border-color 0.3s var(--ease-out), color 0.3s var(--ease-out), box-shadow 0.3s ease;
 }
 .mood-tag:nth-child(odd) { transform: translateY(2px); }
 .mood-tag:nth-child(3n) { transform: translateY(-1px); }
@@ -323,6 +323,7 @@ const showForm = (t) => !t || isEditing.value
   transform: translateY(-2px) scale(1.04);
 }
 .mood-tag.selected :deep(svg) { opacity: 1; }
+.mood-tag:active { transform: scale(0.97); }
 .mood-hint {
   font-size: 0.72rem;
   color: var(--gold-3);
@@ -347,12 +348,13 @@ const showForm = (t) => !t || isEditing.value
   font-weight: 300;
   letter-spacing: 0.1em;
   cursor: pointer;
-  transition: all 0.3s var(--ease-spring);
+  transition: border-color 0.3s var(--ease-out), color 0.3s var(--ease-out), transform 0.16s ease-out;
 }
 .ghost-btn:hover {
   border-color: rgba(237, 206, 110, 0.4);
   color: var(--gold-3);
 }
+.ghost-btn:active:not(:disabled) { transform: scale(0.97); }
 .light-btn {
   display: inline-flex;
   align-items: center;
@@ -369,7 +371,7 @@ const showForm = (t) => !t || isEditing.value
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  transition: all 0.35s var(--ease-spring);
+  transition: transform 0.35s var(--ease-spring), box-shadow 0.35s ease;
   box-shadow: 0 4px 20px rgba(237, 206, 110, 0.25), 0 0 40px rgba(248, 227, 154, 0.08);
 }
 .light-btn svg { width: 14px; height: 14px; }
@@ -445,13 +447,14 @@ const showForm = (t) => !t || isEditing.value
   font-weight: 300;
   letter-spacing: 0.08em;
   cursor: pointer;
-  transition: all 0.3s var(--ease-spring);
+  transition: border-color 0.3s var(--ease-out), color 0.3s var(--ease-out), transform 0.16s ease-out;
 }
 .lit-action-btn:hover {
   border-color: rgba(237, 206, 110, 0.35);
   color: var(--gold-3);
   background: rgba(237, 206, 110, 0.1);
 }
+.lit-action-btn:active:not(:disabled) { transform: scale(0.97); }
 .lit-action-btn.danger:hover {
   border-color: rgba(196, 69, 69, 0.4);
   color: #e07070;

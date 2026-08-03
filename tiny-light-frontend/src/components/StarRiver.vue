@@ -325,7 +325,7 @@ function createRipple(x, y) {
   margin-bottom: 12px;
   opacity: 0;
   transform: translate3d(0, 18px, 0);
-  transition: all 0.9s var(--ease-out);
+  transition: opacity 0.9s var(--ease-out), transform 0.9s var(--ease-out);
 }
 .river-header.visible {
   opacity: 1;
@@ -410,7 +410,6 @@ function createRipple(x, y) {
   }
 }
 .river-star { cursor: pointer; transition: transform 0.35s var(--ease-spring); transform-origin: center; transform-box: fill-box; }
-.river-star .star-body { transition: r 0.35s var(--ease-spring); }
 /* 移除 SVG filter（goldGlow）：109 颗亮星每帧重算 feGaussianBlur 是 GPU 大户。
    star-glow circle 默认隐藏，仅 hover 时淡入，避免每颗星都有光圈在浅色背景上突兀。
    pointer-events:all 确保透明状态下仍接收鼠标事件，作为星点的命中区域（star-body 半径仅 3-9px 太小）。 */

@@ -81,7 +81,7 @@ const items = computed(() => {
   gap: 10px;
   opacity: 0;
   transform: translate3d(0, 18px, 0);
-  transition: all 0.9s var(--ease-out);
+  transition: opacity 0.9s var(--ease-out), transform 0.9s var(--ease-out);
 }
 .memories-header.visible {
   opacity: 1;
@@ -101,7 +101,7 @@ const items = computed(() => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05), 0 10px 28px rgba(0, 0, 0, 0.04);
   opacity: 0;
   transform: translate3d(0, 25px, 0) rotate(var(--cr, 0deg));
-  transition: all 0.8s var(--ease-out);
+  transition: opacity 0.8s var(--ease-out), transform 0.8s var(--ease-out), box-shadow 0.3s ease;
   will-change: transform; /* 仅 3 张卡：常驻合成层，消除 hover 瞬间临时建层的首帧延迟 */
   cursor: pointer;
 }
