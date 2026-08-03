@@ -63,30 +63,45 @@ const contents = [
   '整理旧照片时看到三年前的自己，笑了笑',
 ]
 
-// 生成 2026 年的点亮日期：1-7 月每 2-3 天点一颗，7/28-8/2 连续（streak）
-function gen2026Dates() {
+// 动态取今天：数据随运行日期生效（streak 到昨天、往年今日 = 往年同月同日）。
+// 注意：2月29日场景下往年非闰年会滚动到3月1日，需手动校正（当前8月不涉及）。
+const today = new Date()
+const Y = today.getFullYear()
+const M = today.getMonth()   // 0-based
+const D = today.getDate()
+
+// 今年的点亮日期：1月~上月底每 2-3 天一颗，本月最近 6 天连续到昨天（今天留给用户真实点亮）
+function genDates() {
   const dates = []
-  // 1月1日 - 7月27日：每 2-3 天一颗
-  for (let month = 0; month < 7; month++) {
-    const daysInMonth = new Date(2026, month + 1, 0).getDate()
+  for (let month = 0; month < M; month++) {
+    const daysInMonth = new Date(Y, month + 1, 0).getDate()
     for (let day = 1; day <= daysInMonth; day += 2 + (month + day) % 2) {
-      dates.push(new Date(2026, month, day))
+      dates.push(new Date(Y, month, day))
     }
   }
-  // 7月28日 - 8月2日：连续 6 天（保证 currentStreak = 6）
-  const streakStart = [27, 28, 29, 30, 31] // 7月28-31
-  streakStart.forEach(d => dates.push(new Date(2026, 6, d)))
-  dates.push(new Date(2026, 7, 1)) // 8月1日
-  dates.push(new Date(2026, 7, 2)) // 8月2日（今天）
+  const streakLen = Math.min(6, D - 1)
+  for (let i = streakLen - 1; i >= 0; i--) {
+    dates.push(new Date(Y, M, D - 1 - i))
+  }
   return dates
 }
 
-// 往年今日：8月2日
-const pastDates = [
-  new Date(2025, 7, 2),
-  new Date(2024, 7, 2),
-  new Date(2023, 7, 2),
-]
+// 往年记录：过去 5 年的每一天都插一条（测试用，任意日期访问都有"往年今日"，不用每天跑 seed）。
+// 不影响 star river（getRiver 按年过滤只取今年）。2月29日只在闰年生成，非闰年自动少一天无影响。
+function genPastDates() {
+  const past = []
+  for (let i = 1; i <= 5; i++) {
+    const yr = Y - i
+    for (let month = 0; month < 12; month++) {
+      const daysInMonth = new Date(yr, month + 1, 0).getDate()
+      for (let day = 1; day <= daysInMonth; day++) {
+        past.push(new Date(yr, month, day))
+      }
+    }
+  }
+  return past
+}
+const pastDates = genPastDates()
 
 function fmtDate(d) {
   const y = d.getFullYear()
@@ -98,7 +113,7 @@ function fmtDateTime(d) {
   return `${fmtDate(d)} 20:00:00`
 }
 
-const allDates = [...gen2026Dates(), ...pastDates]
+const allDates = [...genDates(), ...pastDates]
 
 // 构建 INSERT IGNORE 语句
 const values = []
@@ -112,7 +127,7 @@ userIds.forEach((uid, uidIdx) => {
   })
 })
 
-const sql = `SET NAMES utf8mb4;\nDELETE FROM tiny_light WHERE user_id IN (${userIds.map(u => `'${u}'`).join(',')});\nINSERT IGNORE INTO tiny_light (user_id, content, mood, light_date, created_at) VALUES\n${values.join(',\n')};`
+const sql = `SET NAMES utf8mb4;\nDELETE FROM tiny_light WHERE user_id IN (${userIds.map(u => `'${u}'`).join(',')}) AND light_date < CURDATE();\nINSERT IGNORE INTO tiny_light (user_id, content, mood, light_date, created_at) VALUES\n${values.join(',\n')};`
 
 // 执行
 console.log(`生成 ${values.length} 条记录（${userIds.length} 个用户 × ${allDates.length} 天）`)
