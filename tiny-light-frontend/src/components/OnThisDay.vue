@@ -36,37 +36,36 @@ const items = computed(() => {
 </script>
 
 <template>
-  <template v-if="items.length">
-    <h2 class="memories-header">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-      往年今日
-    </h2>
-    <div class="memories-scatter">
-      <div
-        v-for="it in items"
-        :key="it.id"
-        class="memory-card"
-        :style="{
-          top: it.pos.top,
-          left: it.pos.left,
-          right: it.pos.right,
-          '--cr': it.pos.rot + 'deg',
-          'transition-delay': it.pos.delay,
-        }"
-        @click="emit('select', it.raw)"
-      >
-        <div class="memory-year">
-          <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="4"/></svg>
-          {{ it.year }} · {{ it.dateLabel }}
-        </div>
-        <div class="memory-text">{{ it.content }}</div>
-        <div class="memory-mood">
-          <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="5"/></svg>
-          {{ it.mood }}
-        </div>
+  <h2 class="memories-header">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    往年今日
+  </h2>
+  <div class="memories-scatter">
+    <div v-if="!items.length" class="memories-empty">那年今日，故事尚未落笔</div>
+    <div
+      v-for="it in items"
+      :key="it.id"
+      class="memory-card"
+      :style="{
+        top: it.pos.top,
+        left: it.pos.left,
+        right: it.pos.right,
+        '--cr': it.pos.rot + 'deg',
+        'transition-delay': it.pos.delay,
+      }"
+      @click="emit('select', it.raw)"
+    >
+      <div class="memory-year">
+        <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="4"/></svg>
+        {{ it.year }} · {{ it.dateLabel }}
+      </div>
+      <div class="memory-text">{{ it.content }}</div>
+      <div class="memory-mood">
+        <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="5"/></svg>
+        {{ it.mood }}
       </div>
     </div>
-  </template>
+  </div>
 </template>
 
 <style scoped>
@@ -91,6 +90,7 @@ const items = computed(() => {
 .memories-header svg { width: 18px; height: 18px; color: var(--gold-1); opacity: 0.5; }
 
 .memories-scatter { position: relative; min-height: 240px; max-width: 800px; }
+.memories-empty { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 0.82rem; color: var(--text-dark-muted); letter-spacing: 0.1em; opacity: 0.45; font-weight: 300; white-space: nowrap; }
 
 .memory-card {
   position: absolute;
