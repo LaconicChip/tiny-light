@@ -71,7 +71,9 @@ async function refreshAll() {
 async function handleSubmit({ content, mood }) {
   try {
     await createLight({ content, mood })
-    await refreshAll()
+    // 庆祝动画在 createLight 成功、刷新数据之前立刻触发：
+    // 原来放在 refreshAll 之后，此时表单已切换为"已点亮"、.light-btn 已被移除，
+    // querySelector 返回 null → 爆发被静默跳过；且庆祝要等 4 个 GET 全部返回才播。
     if (!prm) {
       // 从「点亮今天」按钮位置爆发金色粒子
       const btn = document.querySelector('.light-btn')
@@ -81,6 +83,7 @@ async function handleSubmit({ content, mood }) {
       }
       shoot(); setTimeout(shoot, 300) // 庆祝流星
     }
+    await refreshAll()
   } catch (e) {
     showError(e.response?.data?.error || '点亮失败')
   }
@@ -120,6 +123,7 @@ let bgResizeHandler = null
 let bgVisibilityHandler = null
 let bgPaused = false
 let bgLoopFn = null  // 暴露 loop 供滚动暂停后重启
+let wakeBg = null    // 暴露唤醒函数：爆发粒子入队时确保 canvas 循环在运行
 let scrollStopTimer = null
 let idleTimer = null  // 静止计时器：3秒无交互后完全停止 canvas
 let bgIdle = false    // 是否进入静止休眠
@@ -332,6 +336,7 @@ function initBackgroundCanvas() {
     }
     scheduleIdle()
   }
+  wakeBg = wakeFromIdle  // 供 burstAt 等外部唤醒
   scheduleIdle()  // 初始启动休眠计时
   // 鼠标移动/触摸唤醒（桌面端鼠标移动频繁，用 rAF 节流避免过度唤醒）
   let wakeRaf = null
@@ -423,6 +428,8 @@ function burstAt(x, y, count = 10, goldRatio = 0.7) {
       isGold,
     })
   }
+  // 唤醒 canvas：若已进入静止休眠（3 秒无交互后 rAF 已停），爆发粒子需要循环来绘制
+  if (wakeBg) wakeBg()
 }
 function initBurst() {
   if (prm || touch) return
@@ -446,7 +453,8 @@ function initParallax() {
     if (y < vh) {
       const p = y / vh
       if (heroEmblemRef.value) heroEmblemRef.value.style.transform = `translate3d(0,${y * 0.35}px,0) rotate(${y * 0.025}deg) scale(${1 - p * 0.15})`
-      if (moonGlowRef.value) moonGlowRef.value.style.transform = `translate(-50%,${y * 0.2}px) scale(${1 - p * 0.12})`
+      // 包裹层不需要 translate(-50%,-50%)：居中由内层 .moon-glow 的 moonBreath 动画负责
+      if (moonGlowRef.value) moonGlowRef.value.style.transform = `translate3d(0,${y * 0.2}px,0) scale(${1 - p * 0.12})`
       if (heroBadgeRef.value) heroBadgeRef.value.style.transform = `translate3d(0,${y * 0.18}px,0)`
       if (heroTitleRef.value) heroTitleRef.value.style.transform = `translate3d(0,${y * 0.12}px,0)`
       if (heroSubRef.value) heroSubRef.value.style.transform = `translate3d(0,${y * 0.08}px,0)`
@@ -498,6 +506,12 @@ function initReveal() {
     })
   }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' })
 }
+/* 观察所有待揭示元素。常驻元素（input-card/river-header/memories-header）不依赖数据，
+   应立即观察，让入场动画按时播放；数据驱动元素（stat-badge/memory-card）在数据到位后补观察。 */
+function observeRevealTargets() {
+  if (!revealObserver) return
+  document.querySelectorAll('.input-card,.stat-badge,.river-header,.memories-header,.memory-card').forEach((el) => revealObserver.observe(el))
+}
 
 /* ===== 生命周期 ===== */
 onMounted(async () => {
@@ -516,13 +530,15 @@ onMounted(async () => {
     })
   })
 
+  // 先观察常驻板块（输入卡/星光河标题/往年今日标题），入场动画按计划播放，不等数据
+  await nextTick()
+  observeRevealTargets()
+
   try {
     await refreshAll()
-    // 数据加载后，下一帧再观察滚动揭示元素（确保子组件已渲染）
+    // 数据加载后，下一帧再补观察数据驱动元素（stat-badge / memory-card 此刻才渲染）
     await nextTick()
-    if (revealObserver) {
-      document.querySelectorAll('.input-card,.stat-badge,.river-header,.memories-header,.memory-card').forEach((el) => revealObserver.observe(el))
-    }
+    observeRevealTargets()
   } catch (e) {
     showError('加载失败，请检查后端是否启动')
   }
@@ -563,25 +579,31 @@ onUnmounted(() => {
     <div class="page-inner">
       <!-- Hero -->
       <section class="hero">
-        <div class="hero-emblem" ref="heroEmblemRef">
-          <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <radialGradient id="mg" cx="0.38" cy="0.32" r="0.68">
-                <stop offset="0%" stop-color="#fff8e0"/>
-                <stop offset="40%" stop-color="#f8e39a"/>
-                <stop offset="100%" stop-color="#c99a35"/>
-              </radialGradient>
-              <filter id="mgl"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-            </defs>
-            <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(248,227,154,0.08)" stroke-width="0.5"/>
-            <circle cx="60" cy="60" r="44" fill="none" stroke="rgba(248,227,154,0.05)" stroke-width="0.5"/>
-            <circle cx="60" cy="60" r="28" fill="url(#mg)" filter="url(#mgl)"/>
-            <circle cx="72" cy="53" r="24" fill="#16162e"/>
-            <g transform="translate(94,28)" opacity="0.7"><path d="M0,-4 L1.2,0 L0,4 L-1.2,0 Z" fill="#f8e39a"/></g>
-            <g transform="translate(24,86)" opacity="0.4"><path d="M0,-2.5 L0.7,0 L0,2.5 L-0.7,0 Z" fill="#f8e39a"/></g>
-          </svg>
+        <!-- 视差包裹层：JS 视差位移写到包裹层，内层元素保留各自的 CSS 动画。
+             CSS 动画（含 forwards 填充）会覆盖内联 transform，若直接写在动画元素上视差不生效。 -->
+        <div class="parallax-emblem" ref="heroEmblemRef">
+          <div class="hero-emblem">
+            <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <radialGradient id="mg" cx="0.38" cy="0.32" r="0.68">
+                  <stop offset="0%" stop-color="#fff8e0"/>
+                  <stop offset="40%" stop-color="#f8e39a"/>
+                  <stop offset="100%" stop-color="#c99a35"/>
+                </radialGradient>
+                <filter id="mgl"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              </defs>
+              <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(248,227,154,0.08)" stroke-width="0.5"/>
+              <circle cx="60" cy="60" r="44" fill="none" stroke="rgba(248,227,154,0.05)" stroke-width="0.5"/>
+              <circle cx="60" cy="60" r="28" fill="url(#mg)" filter="url(#mgl)"/>
+              <circle cx="72" cy="53" r="24" fill="#16162e"/>
+              <g transform="translate(94,28)" opacity="0.7"><path d="M0,-4 L1.2,0 L0,4 L-1.2,0 Z" fill="#f8e39a"/></g>
+              <g transform="translate(24,86)" opacity="0.4"><path d="M0,-2.5 L0.7,0 L0,2.5 L-0.7,0 Z" fill="#f8e39a"/></g>
+            </svg>
+          </div>
         </div>
-        <div class="moon-glow" ref="moonGlowRef"></div>
+        <div class="parallax-moon" ref="moonGlowRef">
+          <div class="moon-glow"></div>
+        </div>
         <svg class="constellation" style="top:10%;left:4%;width:130px;height:80px" viewBox="0 0 130 80">
           <line x1="10" y1="20" x2="40" y2="35"/><line x1="40" y1="35" x2="58" y2="12"/><line x1="40" y1="35" x2="80" y2="52"/><line x1="80" y1="52" x2="110" y2="28"/><line x1="80" y1="52" x2="120" y2="65"/>
           <circle cx="10" cy="20" r="1.3"/><circle cx="40" cy="35" r="2"/><circle cx="58" cy="12" r="0.9"/><circle cx="80" cy="52" r="1.6"/><circle cx="110" cy="28" r="0.9"/><circle cx="120" cy="65" r="1.1"/>
@@ -591,10 +613,14 @@ onUnmounted(() => {
           <circle cx="8" cy="45" r="0.9"/><circle cx="32" cy="30" r="1.4"/><circle cx="58" cy="42" r="1.8"/><circle cx="85" cy="18" r="0.9"/><circle cx="95" cy="50" r="1.1"/>
         </svg>
 
-        <div class="hero-badge" ref="heroBadgeRef">
-          <span class="line"></span>TINY LIGHT · {{ year }}<span class="line"></span>
+        <div class="parallax-badge" ref="heroBadgeRef">
+          <div class="hero-badge">
+            <span class="line"></span>TINY LIGHT · {{ year }}<span class="line"></span>
+          </div>
         </div>
-        <h1 class="hero-title" ref="heroTitleRef">今日<span class="gold">微</span>光</h1>
+        <div class="parallax-title" ref="heroTitleRef">
+          <h1 class="hero-title">今日<span class="gold">微</span>光</h1>
+        </div>
         <div class="hero-ornament">
           <svg width="90" height="10" viewBox="0 0 90 10">
             <line x1="0" y1="5" x2="34" y2="5" stroke="rgba(237,206,110,0.25)" stroke-width="0.5"/>
@@ -603,7 +629,9 @@ onUnmounted(() => {
             <line x1="56" y1="5" x2="90" y2="5" stroke="rgba(237,206,110,0.25)" stroke-width="0.5"/>
           </svg>
         </div>
-        <p class="hero-sub" ref="heroSubRef">每一天，都有值得被记住的一瞬。<br>把它点亮，让星河为你留存。</p>
+        <div class="parallax-sub" ref="heroSubRef">
+          <p class="hero-sub">每一天，都有值得被记住的一瞬。<br>把它点亮，让星河为你留存。</p>
+        </div>
         <div class="hero-date">
           <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0l1.8 5.5L16 8l-6.2 2.5L8 16l-1.8-5.5L0 8l6.2-2.5z"/></svg>
           {{ heroDate }}
@@ -688,6 +716,7 @@ onUnmounted(() => {
 /* Hero */
 .hero {
   min-height: 100vh;
+  min-height: 100svh;  /* 移动端地址栏收起时 100vh 比可视区高会跳动，svh 取小视口高度兜底 */
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -695,25 +724,37 @@ onUnmounted(() => {
   padding: 80px 0 60px;
   position: relative;
 }
-.hero-emblem {
+/* 视差包裹层：JS 视差位移写在这里，内层元素保留 CSS 动画（动画会覆盖内联 transform，
+   写在动画元素上会导致视差失效）。包裹层只承载位移/缩放，不参与动画。 */
+.parallax-emblem {
   position: absolute;
   top: clamp(40px, 8vh, 90px);
   right: clamp(10px, 6vw, 80px);
   width: clamp(60px, 9vw, 110px);
   height: clamp(60px, 9vw, 110px);
+  will-change: transform;
+}
+.parallax-emblem .hero-emblem {
+  width: 100%;
+  height: 100%;
   animation: floatEmblem 10s ease-in-out infinite;
 }
+.hero-emblem svg { width: 100%; height: 100%; display: block; }
 @keyframes floatEmblem {
   0%, 100% { transform: translate3d(0, 0, 0) rotate(-3deg); }
   50% { transform: translate3d(0, -12px, 0) rotate(2deg); }
 }
-.moon-glow {
+.parallax-moon {
   position: absolute;
   top: 40%;
   left: 30%;
-  transform: translate(-50%, -50%);
   width: 380px;
   height: 380px;
+  will-change: transform;
+}
+.parallax-moon .moon-glow {
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
   background: radial-gradient(circle, rgba(248,227,154,0.1) 0%, rgba(237,206,110,0.03) 40%, transparent 70%);
   animation: moonBreath 8s ease-in-out infinite;
@@ -723,6 +764,7 @@ onUnmounted(() => {
   0%, 100% { opacity: 0.6; transform: translate(-50%, -50%) scale(1); }
   50% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
 }
+.parallax-badge, .parallax-title, .parallax-sub { will-change: transform; }
 .constellation { position: absolute; pointer-events: none; opacity: 0.2; }
 .constellation line { stroke: rgba(245,242,235,0.1); stroke-width: 0.5; }
 .constellation circle { fill: var(--platinum-2); }
@@ -865,11 +907,11 @@ onUnmounted(() => {
 /* 响应式 */
 @media (max-width: 768px) {
   .hero { padding-top: 50px; }
-  .hero-emblem { top: 25px; right: 10px; }
+  .parallax-emblem { top: 25px; right: 10px; }
   .section-stats { min-height: auto; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; padding: 20px 0 40px; }
 }
 @media (max-width: 480px) {
   .hero-title { letter-spacing: 0.06em; }
-  .hero-emblem { width: 50px; height: 50px; top: 20px; right: 12px; }
+  .parallax-emblem { width: 50px; height: 50px; top: 20px; right: 12px; }
 }
 </style>

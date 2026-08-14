@@ -67,8 +67,11 @@ function confirmDelete() {
 }
 
 /* 3D 倾斜 + 磁吸按钮（仅桌面 + 非减少动效）
-   磁吸用事件委托绑在常驻的 card 上，避免按钮在已点亮态不渲染时绑不到监听 */
+   磁吸用事件委托绑在常驻的 card 上，避免按钮在已点亮态不渲染时绑不到监听
+   注意：card 是外层 .input-card-tilt（承载倾斜 transform，无 CSS 动画不会被覆盖），
+   .visible 由滚动揭示加在内层 .input-card 上 */
 const cardRef = ref(null)
+const innerCardRef = ref(null)
 let tiltRaf = null
 let cardMoveHandler = null
 let cardLeaveHandler = null
@@ -78,6 +81,7 @@ onMounted(() => {
   if (prm || touch) return
   const card = cardRef.value
   if (!card) return
+  innerCardRef.value = card.querySelector('.input-card')
 
   cardMoveHandler = (e) => {
     // 磁吸：鼠标在点亮按钮上时，按钮被轻微吸引（委托，按钮后渲染也能命中）
@@ -94,7 +98,7 @@ onMounted(() => {
       btn.style.transform = `translate3d(${(e.clientX - cx) * 0.15}px,${(e.clientY - cy) * 0.15 - 2}px,0) scale(1.02)`
     }
     // 3D 倾斜：仅在卡片可见后生效
-    if (!card.classList.contains('visible')) return
+    if (!innerCardRef.value?.classList.contains('visible')) return
     if (tiltRaf) cancelAnimationFrame(tiltRaf)
     tiltRaf = requestAnimationFrame(() => {
       const r = card.getBoundingClientRect()
@@ -106,7 +110,7 @@ onMounted(() => {
   }
   cardLeaveHandler = () => {
     if (tiltRaf) cancelAnimationFrame(tiltRaf)
-    if (card.classList.contains('visible')) {
+    if (innerCardRef.value?.classList.contains('visible')) {
       card.style.transform = 'perspective(1000px) rotate(-1.2deg) translate3d(0,0,0)'
     }
     if (currentBtn) { currentBtn.style.transform = ''; currentBtn = null }
@@ -129,70 +133,85 @@ const showForm = (t) => !t || isEditing.value
 </script>
 
 <template>
-  <div class="input-card" ref="cardRef">
-    <Transition mode="out-in" name="swap">
-      <!-- 未点亮 或 编辑态：表单 -->
-      <div v-if="showForm(todayLight)" key="form" class="form-state">
-        <div class="input-date">
-          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 4v4l2.5 2.5"/></svg>
-          {{ dateLabel }}
+  <!-- 外层 .input-card-tilt：接收 JS 3D 倾斜 transform（无 CSS 动画，不受覆盖）。
+       内层 .input-card 保留入场动画 cardEnter（forwards 填充会覆盖内联 transform，
+       直接写在动画元素上会导致 3D 倾斜失效）。 -->
+  <div class="input-card-tilt" ref="cardRef">
+    <div class="input-card">
+      <Transition mode="out-in" name="swap">
+        <!-- 未点亮 或 编辑态：表单 -->
+        <div v-if="showForm(todayLight)" key="form" class="form-state">
+          <div class="input-date">
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 4v4l2.5 2.5"/></svg>
+            {{ dateLabel }}
+          </div>
+          <div class="input-prompt">{{ isEditing ? '修改今天的微光' : '今天，是什么照亮了你？' }}</div>
+          <textarea
+            v-model="content"
+            class="input-textarea"
+            rows="3"
+            maxlength="200"
+            placeholder="写下今天的微光——一杯热茶、一个微笑、一阵晚风……"
+          />
+          <div class="mood-tags">
+            <span
+              v-for="m in moods"
+              :key="m.key"
+              :class="['mood-tag', { selected: mood === m.key }]"
+              @click="mood = m.key"
+            >
+              <span class="mood-icon" v-html="m.svg"></span>
+              {{ m.key }}
+            </span>
+          </div>
+          <p v-if="content.trim() && !mood" class="mood-hint">先选个心情吧</p>
+          <div class="form-actions">
+            <button v-if="isEditing" class="ghost-btn" @click="cancelEdit">取消</button>
+            <button
+              class="light-btn"
+              :disabled="!content.trim() || !mood"
+              @click="isEditing ? saveEdit() : submit()"
+            >
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0l1.8 5.5L16 8l-6.2 2.5L8 16l-1.8-5.5L0 8l6.2-2.5z"/></svg>
+              {{ isEditing ? '保存修改' : '点亮今天' }}
+            </button>
+          </div>
         </div>
-        <div class="input-prompt">{{ isEditing ? '修改今天的微光' : '今天，是什么照亮了你？' }}</div>
-        <textarea
-          v-model="content"
-          class="input-textarea"
-          rows="3"
-          maxlength="200"
-          placeholder="写下今天的微光——一杯热茶、一个微笑、一阵晚风……"
-        />
-        <div class="mood-tags">
-          <span
-            v-for="m in moods"
-            :key="m.key"
-            :class="['mood-tag', { selected: mood === m.key }]"
-            @click="mood = m.key"
-          >
-            <span class="mood-icon" v-html="m.svg"></span>
-            {{ m.key }}
-          </span>
+        <!-- 已点亮 + 查看态 -->
+        <div v-else key="lit" class="lit-state show">
+          <div class="lit-glow"></div>
+          <div class="lit-quote">{{ todayLight.content }}</div>
+          <div class="lit-meta">
+            <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="5"/></svg>
+            LIT · {{ todayLight.mood }}
+          </div>
+          <div class="lit-actions">
+            <button class="lit-action-btn" @click="startEdit">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              编辑
+            </button>
+            <button class="lit-action-btn danger" @click="confirmDelete">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+              删除
+            </button>
+          </div>
         </div>
-        <p v-if="content.trim() && !mood" class="mood-hint">先选个心情吧</p>
-        <div class="form-actions">
-          <button v-if="isEditing" class="ghost-btn" @click="cancelEdit">取消</button>
-          <button
-            class="light-btn"
-            :disabled="!content.trim() || !mood"
-            @click="isEditing ? saveEdit() : submit()"
-          >
-            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0l1.8 5.5L16 8l-6.2 2.5L8 16l-1.8-5.5L0 8l6.2-2.5z"/></svg>
-            {{ isEditing ? '保存修改' : '点亮今天' }}
-          </button>
-        </div>
-      </div>
-      <!-- 已点亮 + 查看态 -->
-      <div v-else key="lit" class="lit-state show">
-        <div class="lit-glow"></div>
-        <div class="lit-quote">{{ todayLight.content }}</div>
-        <div class="lit-meta">
-          <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="5"/></svg>
-          LIT · {{ todayLight.mood }}
-        </div>
-        <div class="lit-actions">
-          <button class="lit-action-btn" @click="startEdit">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            编辑
-          </button>
-          <button class="lit-action-btn danger" @click="confirmDelete">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-            删除
-          </button>
-        </div>
-      </div>
-    </Transition>
+      </Transition>
+    </div>
   </div>
 </template>
 
 <style scoped>
+/* 外层：接收 JS 3D 倾斜 transform，负责布局尺寸 + 静止旋转（-1.2deg）。
+   无 CSS 动画，不会与 JS 抢 transform。旋转只放在这一层，内层只做位移入场，
+   避免内层 cardEnter 的 rotate + 外层 rotate 叠加成双重旋转。 */
+.input-card-tilt {
+  width: 100%;
+  max-width: 480px;
+  margin-left: clamp(0px, 3vw, 40px);
+  transform: perspective(1000px) rotate(-1.2deg);
+  will-change: transform;
+}
 .input-card {
   position: relative;
   background: var(--glass-dark);
@@ -202,9 +221,7 @@ const showForm = (t) => !t || isEditing.value
   border-radius: 24px;
   padding: clamp(22px, 3.5vw, 36px);
   width: 100%;
-  max-width: 480px;
-  margin-left: clamp(0px, 3vw, 40px);
-  transform: perspective(1000px) rotate(-1.2deg) translate3d(0, 40px, 0);
+  transform: translate3d(0, 40px, 0);  /* 旋转在外层 .input-card-tilt，内层只做位移 */
   opacity: 0;
   /* transition 只管 opacity 和 box-shadow；transform 不列入，避免与 JS 3D 倾斜冲突
      （原 transition: transform 0.5s 会让 mousemove 倾斜有 0.5s 延迟，跟手卡顿）。
@@ -214,14 +231,14 @@ const showForm = (t) => !t || isEditing.value
 }
 .input-card.visible {
   opacity: 1;
-  /* transform 不在这里设：visible 后由 JS mousemove 接管 3D 倾斜，
-     无鼠标时保持入场结束态（rotate -1.2deg + translate3d 0）。
-     用 animation 做一次性入场位移，结束后 transform 回到 CSS 默认（rotate -1.2deg） */
+  /* transform 不在这里设：visible 后由 JS mousemove 在外层 .input-card-tilt 上接管 3D 倾斜，
+     内层无鼠标时保持入场结束态（translate3d 0）。
+     用 animation 做一次性入场位移，结束后 transform 回到 CSS 默认（translate3d 0） */
   animation: cardEnter 0.9s var(--ease-out) forwards;
 }
 @keyframes cardEnter {
-  from { transform: perspective(1000px) rotate(-1.2deg) translate3d(0, 40px, 0); }
-  to { transform: perspective(1000px) rotate(-1.2deg) translate3d(0, 0, 0); }
+  from { transform: translate3d(0, 40px, 0); }
+  to { transform: translate3d(0, 0, 0); }
 }
 .input-card::before {
   content: '';
@@ -468,11 +485,12 @@ const showForm = (t) => !t || isEditing.value
 .swap-leave-to { opacity: 0; transform: translate3d(0, -8px, 0); }
 
 @media (max-width: 768px) {
-  .input-card { margin-left: 0; max-width: 100%; transform: perspective(1000px) rotate(-0.6deg) translate3d(0, 40px, 0); }
+  .input-card-tilt { margin-left: 0; max-width: 100%; transform: perspective(1000px) rotate(-0.6deg); }
+  .input-card { transform: translate3d(0, 40px, 0); }
   .input-card.visible { animation-name: cardEnterMobile; }
   @keyframes cardEnterMobile {
-    from { transform: perspective(1000px) rotate(-0.6deg) translate3d(0, 40px, 0); }
-    to { transform: perspective(1000px) rotate(-0.6deg) translate3d(0, 0, 0); }
+    from { transform: translate3d(0, 40px, 0); }
+    to { transform: translate3d(0, 0, 0); }
   }
 }
 @media (max-width: 480px) {
