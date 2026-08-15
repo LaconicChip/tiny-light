@@ -453,8 +453,11 @@ function initParallax() {
     if (y < vh) {
       const p = y / vh
       if (heroEmblemRef.value) heroEmblemRef.value.style.transform = `translate3d(0,${y * 0.35}px,0) rotate(${y * 0.025}deg) scale(${1 - p * 0.15})`
-      // 包裹层不需要 translate(-50%,-50%)：居中由内层 .moon-glow 的 moonBreath 动画负责
-      if (moonGlowRef.value) moonGlowRef.value.style.transform = `translate3d(0,${y * 0.2}px,0) scale(${1 - p * 0.12})`
+      // 月亮包裹层必须带 translate(-50%,-50%) 居中：否则 380px 宽的盒子在 left:30% 处
+      // 会向右伸出屏幕（窄屏手机），产生横向溢出 → 向左拖动出现右侧空白。
+      // 内层 .moon-glow 的 moonBreath 动画自带 translate(-50%,-50%)，负责视觉居中；
+      // 这里的居中保证包裹层盒子本身不越界。
+      if (moonGlowRef.value) moonGlowRef.value.style.transform = `translate(-50%, calc(-50% + ${y * 0.2}px)) scale(${1 - p * 0.12})`
       if (heroBadgeRef.value) heroBadgeRef.value.style.transform = `translate3d(0,${y * 0.18}px,0)`
       if (heroTitleRef.value) heroTitleRef.value.style.transform = `translate3d(0,${y * 0.12}px,0)`
       if (heroSubRef.value) heroSubRef.value.style.transform = `translate3d(0,${y * 0.08}px,0)`
@@ -717,6 +720,7 @@ onUnmounted(() => {
 .hero {
   min-height: 100vh;
   min-height: 100svh;  /* 移动端地址栏收起时 100vh 比可视区高会跳动，svh 取小视口高度兜底 */
+  overflow: hidden;  /* 夹住月亮光晕/星座等绝对定位装饰的横向溢出，防窄屏出现右侧空白 */
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -725,14 +729,16 @@ onUnmounted(() => {
   position: relative;
 }
 /* 视差包裹层：JS 视差位移写在这里，内层元素保留 CSS 动画（动画会覆盖内联 transform，
-   写在动画元素上会导致视差失效）。包裹层只承载位移/缩放，不参与动画。 */
+   写在动画元素上会导致视差失效）。包裹层只承载位移/缩放，不参与动画。
+   注意：不能给包裹层加 will-change:transform —— 那会让标题等元素永久提升为独立合成层，
+   带 text-shadow 的层与背景渲染精度不一致，会在层边缘出现"淡淡的竖线 + 左右色差"接缝。
+   滚动时浏览器会自动提升被 transform 的元素，无需 will-change。 */
 .parallax-emblem {
   position: absolute;
   top: clamp(40px, 8vh, 90px);
   right: clamp(10px, 6vw, 80px);
   width: clamp(60px, 9vw, 110px);
   height: clamp(60px, 9vw, 110px);
-  will-change: transform;
 }
 .parallax-emblem .hero-emblem {
   width: 100%;
@@ -750,7 +756,6 @@ onUnmounted(() => {
   left: 30%;
   width: 380px;
   height: 380px;
-  will-change: transform;
 }
 .parallax-moon .moon-glow {
   width: 100%;
@@ -764,7 +769,8 @@ onUnmounted(() => {
   0%, 100% { opacity: 0.6; transform: translate(-50%, -50%) scale(1); }
   50% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
 }
-.parallax-badge, .parallax-title, .parallax-sub { will-change: transform; }
+/* 注意：.parallax-badge/.parallax-title/.parallax-sub 不加 will-change，
+   避免永久合成层在标题 text-shadow 边缘产生渲染接缝（见上方视差包裹层注释）。 */
 .constellation { position: absolute; pointer-events: none; opacity: 0.2; }
 .constellation line { stroke: rgba(245,242,235,0.1); stroke-width: 0.5; }
 .constellation circle { fill: var(--platinum-2); }
