@@ -720,7 +720,9 @@ onUnmounted(() => {
 .hero {
   min-height: 100vh;
   min-height: 100svh;  /* 移动端地址栏收起时 100vh 比可视区高会跳动，svh 取小视口高度兜底 */
-  overflow: hidden;  /* 夹住月亮光晕/星座等绝对定位装饰的横向溢出，防窄屏出现右侧空白 */
+  /* 注意：这里不能加 overflow:hidden —— 标题 .hero-title 贴着 hero 左边缘，其 60px 金色
+     text-shadow 会被左边界硬裁剪，滚动提升合成层后出现"今字左侧分界线 + 右比左亮"的色差。
+     月亮的横向溢出已由 JS 居中位移根治，html/body 的 overflow-x:hidden 兜底，无需在此裁剪。 */
   display: flex;
   flex-direction: column;
   align-items: flex-start;
